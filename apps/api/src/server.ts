@@ -12,7 +12,7 @@ import { env } from "./env";
 
 export const app = express();
 const openApiDocument = generateOpenApiDocument(serverRouter, {
-  title: "Streamyst OpenAPI",
+  title: "Varta OpenAPI",
   version: "1.0.0",
   baseUrl: env.BASE_URL.concat("/api"),
 });
@@ -20,7 +20,8 @@ const openApiDocument = generateOpenApiDocument(serverRouter, {
 if (env.NODE_ENV !== "prod") {
   app.use(
     cors({
-      origin: "*",
+      // origin: "*",
+      origin: "http://localhost:3000",
     }),
   );
 }
@@ -28,11 +29,11 @@ if (env.NODE_ENV !== "prod") {
 app.use(express.json());
 
 app.get("/", (req, res) => {
-  return res.json({ message: "Streamyst is up and running..." });
+  return res.json({ message: "Varta is up and running..." });
 });
 
 app.get("/health", (req, res) => {
-  return res.json({ message: "Streamyst server is healthy", healthy: true });
+  return res.json({ message: "Varta server is healthy", healthy: true });
 });
 
 logger.debug(`openapi.json: ${env.BASE_URL}/openapi.json`);
