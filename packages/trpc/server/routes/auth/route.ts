@@ -5,6 +5,8 @@ import { generatePath } from "../../utils/path-generator";
 import {
   createUserWithEmailAndPasswordInputModel,
   createUserWithEmailAndPasswordOutputModel,
+  signInUserWithEmailAndPaswordInputModel,
+  signInUserWithEmailAndPaswordOutputModel,
 } from "./model";
 
 const TAGS = ["Authentication"];
@@ -20,9 +22,9 @@ export const authRouter = router({
   //     return supportedMethods;
   //   }),
 
-  //* Now will write the procedures for authentication like login, logout, register, etc. For example:
+  // Now will write the procedures for authentication like login, logout, register, etc. For example:
 
-  // login: publicProcedure
+  //* SignUp: publicProcedure
   createUserWithEmailAndPassowrd: publicProcedure
     .meta({
       openapi: { method: "POST", path: getPath("/createUserWithEmailAndPassowrd"), tags: TAGS },
@@ -42,5 +44,24 @@ export const authRouter = router({
 
       setAuthenticationCookie(ctx, token); // Set the authentication cookie with the generated token
       return { id };
+    }),
+
+  //* SignIn Procedure
+  signInUserWithEmailAndPassword: publicProcedure
+    .meta({
+      openapi: { method: "POST", path: getPath("/signInUserWithEmailAndPassowrd"), tags: TAGS },
+    })
+    .input(signInUserWithEmailAndPaswordInputModel)
+    .output(signInUserWithEmailAndPaswordOutputModel)
+    .mutation(async ({ input, ctx }) => {
+      const { email, password } = input;
+
+      const { id, token } = await userService.signInUserWithEmailAndPassword({ email, password });
+
+      setAuthenticationCookie(ctx, token);
+
+      return {
+        id,
+      };
     }),
 });
