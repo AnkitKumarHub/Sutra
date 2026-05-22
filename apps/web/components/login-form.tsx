@@ -1,6 +1,7 @@
 "use client"
 
 import { useForm } from "react-hook-form"
+import {useRouter} from "next/navigation"
 
 import { cn } from "~/lib/utils"
 import { Button } from "~/components/ui/button"
@@ -32,6 +33,7 @@ export function LoginForm({
 
   //* Hooks to handle sign in logic
   const {signInUserWithEmailAndPassowrdAsync} = useSignIn()
+  const router = useRouter()
 
   const form = useForm<LoginFormValues>()
 
@@ -41,6 +43,7 @@ export function LoginForm({
       email: values.email,
       password: values.password
     })
+    router.replace("/dashboard");
   }
 
   return (

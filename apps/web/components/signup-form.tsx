@@ -1,13 +1,13 @@
 "use client";
 
 import { useForm } from "react-hook-form";
+import {useRouter} from "next/navigation"
 
 import { cn } from "~/lib/utils";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "~/components/ui/field";
 import { Input } from "~/components/ui/input";
-import { trpc } from "~/trpc/client";
 import { useSignup } from "~/hooks/api/auth";
 
 type SignupFormValues = {
@@ -19,6 +19,7 @@ type SignupFormValues = {
 
 export function SignupForm({ className, ...props }: React.ComponentProps<"div">) {
   const {createUserWithEmailAndPassowrdAsync} = useSignup()
+  const router = useRouter();
   const form = useForm<SignupFormValues>();
 
   const handleSubmitForm = async (values: SignupFormValues) => {
@@ -26,6 +27,7 @@ export function SignupForm({ className, ...props }: React.ComponentProps<"div">)
     try {
       const { id } = await createUserWithEmailAndPassowrdAsync({email: values.email, password: values.password, fullName: values.fullName});
       console.log("User created with ID:", id);
+      router.replace("/login");
     } catch (error) {
       console.error("Error creating user:", error);
     }
