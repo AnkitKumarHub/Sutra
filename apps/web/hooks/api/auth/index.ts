@@ -1,6 +1,9 @@
 import { trpc } from "~/trpc/client";
 
 export const useSignup = () => {
+  
+  const utils = trpc.useUtils() // to invalidate the cache after successful signup or login
+
   const {
     mutateAsync: createUserWithEmailAndPassowrdAsync,
     mutate: createUserWithEmailAndPassowrd,
@@ -10,7 +13,11 @@ export const useSignup = () => {
     isIdle,
     isSuccess,
     status,
-  } = trpc.auth.createUserWithEmailAndPassowrd.useMutation();
+  } = trpc.auth.createUserWithEmailAndPassowrd.useMutation({
+    onSuccess: async () => {
+      await utils.auth.getLoggedInUserInfo.invalidate(); // Invalidate the cache for getLoggedInUserInfo query to refetch the user info after successful signup
+    }
+  });
 
   return {
     createUserWithEmailAndPassowrdAsync,
@@ -24,9 +31,9 @@ export const useSignup = () => {
   };
 };
 
-
 export const useSignIn = () => {
-   const {
+  const utils = trpc.useUtils() // to invalidate the cache after successful signup or login
+  const {
     mutateAsync: signInUserWithEmailAndPassowrdAsync,
     mutate: signInUserWithEmailAndPassowrd,
     error,
@@ -35,7 +42,11 @@ export const useSignIn = () => {
     isIdle,
     isSuccess,
     status,
-  } = trpc.auth.signInUserWithEmailAndPassword.useMutation();
+  } = trpc.auth.signInUserWithEmailAndPassword.useMutation({
+    onSuccess: async  () => {
+      await utils.auth.getLoggedInUserInfo.invalidate(); // Invalidate the cache for getLoggedInUserInfo query to refetch the user info after successful login
+    }
+  });
 
   return {
     signInUserWithEmailAndPassowrdAsync,
@@ -47,4 +58,27 @@ export const useSignIn = () => {
     isSuccess,
     status,
   };
-}
+};
+
+//
+export const useUser = () => { 
+  const {
+    data: user,
+    error,
+    isFetching,
+    isFetched,
+    isLoading,
+    status,
+  } = trpc.auth.getLoggedInUserInfo.useQuery();
+
+  return {
+    user,
+    error,
+    isFetching,
+    isFetched,
+    isLoading,
+    status,
+  };
+
+  //but here is some problem react Query will cache
+};

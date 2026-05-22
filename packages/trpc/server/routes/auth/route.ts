@@ -1,10 +1,12 @@
 import { userService } from "../../services";
 import { publicProcedure, router } from "../../trpc";
-import { setAuthenticationCookie } from "../../utils/cookie";
+import { getAuthenticationCookie, setAuthenticationCookie } from "../../utils/cookie";
 import { generatePath } from "../../utils/path-generator";
 import {
   createUserWithEmailAndPasswordInputModel,
   createUserWithEmailAndPasswordOutputModel,
+  getLoggedInUserInfoInputModel,
+  getLoggedInUserInfoOutputModel,
   signInUserWithEmailAndPaswordInputModel,
   signInUserWithEmailAndPaswordOutputModel,
 } from "./model";
@@ -63,5 +65,21 @@ export const authRouter = router({
       return {
         id,
       };
+    }),
+
+  //* Get Logged In User Info
+  getLoggedInUserInfo: publicProcedure
+    .meta({
+      openapi: { method: "GET", path: getPath("/getLoggedInUserInfo"), tags: TAGS },
+    })
+    .input(getLoggedInUserInfoInputModel)
+    .output(getLoggedInUserInfoOutputModel)
+    .query(async ({ ctx }) => {
+      const userToken = getAuthenticationCookie(ctx);
+
+      if (!userToken) throw new Error("User is not authenticated");
+      const { id, email, fullName, profileImageUrl } =
+        await userService.verifyAndDecodeUserToken(userToken); // this will throw an error if the token is invalid or expired
+      return { id, email, fullName, profileImageUrl };
     }),
 });
