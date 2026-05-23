@@ -15,6 +15,13 @@
       "when": 1779218169586,
       "tag": "0001_wild_mastermind",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1779527576216,
+      "tag": "0002_pretty_black_bird",
+      "breakpoints": true
     }
   ]
 }
