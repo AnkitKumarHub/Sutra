@@ -9,7 +9,7 @@ const getPath = generatePath("/form");
 export const formRouter = router({
   createForm: authenticatedProcedure
     .meta({
-      openapi: { method: "POST", path: getPath("/createForm"), tags: TAGS },
+      openapi: { method: "POST", path: getPath("/createForm"), tags: TAGS, protect: true }, // protect: true indicates that this route requires authentication
     })
     .input(createFormInputModel)
     .output(createFormOutputModel)
