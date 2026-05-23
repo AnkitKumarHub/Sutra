@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, timestamp, boolean, text } from "drizzle-orm/pg-core";
+import { pgTable, uuid, varchar, timestamp } from "drizzle-orm/pg-core";
 import { usersTable } from "./user";
 
 export const formTables = pgTable("forms", {
@@ -12,3 +12,6 @@ export const formTables = pgTable("forms", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").$onUpdate(() => new Date()),
 });
+
+export type SelectForm = typeof formTables.$inferSelect;
+export type InsertForm = typeof formTables.$inferInsert;
