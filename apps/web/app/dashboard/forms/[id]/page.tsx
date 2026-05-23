@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react"
 import Link from "next/link"
 import { useParams } from "next/navigation"
-import { PencilIcon, Trash2Icon } from "lucide-react"
+import { PencilIcon, Trash2Icon, TypeIcon, HashIcon, MailIcon, ToggleLeftIcon, KeyIcon } from "lucide-react"
 import { Controller, useForm } from "react-hook-form"
 import { toast } from "sonner"
 
@@ -29,14 +29,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "~/components/ui/table"
 import { Textarea } from "~/components/ui/textarea"
 
 type FieldType = "TEXT" | "NUMBER" | "EMAIL" | "YES_NO" | "PASSWORD"
@@ -57,6 +49,23 @@ type UpdateFieldValues = {
   type: FieldType
   isRequired: boolean
   options?: string
+}
+
+const getFieldIcon = (type: FieldType) => {
+  switch (type) {
+    case "TEXT":
+      return <TypeIcon className="h-5 w-5" />
+    case "NUMBER":
+      return <HashIcon className="h-5 w-5" />
+    case "EMAIL":
+      return <MailIcon className="h-5 w-5" />
+    case "YES_NO":
+      return <ToggleLeftIcon className="h-5 w-5" />
+    case "PASSWORD":
+      return <KeyIcon className="h-5 w-5" />
+    default:
+      return <TypeIcon className="h-5 w-5" />
+  }
 }
 
 export default function FormBuilderPage() {
@@ -209,176 +218,182 @@ export default function FormBuilderPage() {
             </Button>
           </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Add field</CardTitle>
-              <CardDescription>
-                Create a new field for this form.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form
-                className="grid grid-cols-1 gap-4 md:grid-cols-2"
-                onSubmit={createForm.handleSubmit(handleCreateField)}
-              >
-                <Field>
-                  <FieldLabel htmlFor="new-label">Label</FieldLabel>
-                  <Input
-                    id="new-label"
-                    maxLength={100}
-                    placeholder="Full Name"
-                    required
-                    {...createForm.register("label", { required: true })}
-                  />
-                </Field>
-                <Field>
-                  <FieldLabel>Type</FieldLabel>
-                  <Controller
-                    control={createForm.control}
-                    name="type"
-                    render={({ field }) => (
-                      <Select value={field.value} onValueChange={field.onChange}>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Select type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="TEXT">Text</SelectItem>
-                          <SelectItem value="NUMBER">Number</SelectItem>
-                          <SelectItem value="EMAIL">Email</SelectItem>
-                          <SelectItem value="YES_NO">Yes/No</SelectItem>
-                          <SelectItem value="PASSWORD">Password</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    )}
-                  />
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="new-placeholder">Placeholder</FieldLabel>
-                  <Input
-                    id="new-placeholder"
-                    placeholder="Enter value"
-                    {...createForm.register("placeholder")}
-                  />
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="new-options">Options</FieldLabel>
-                  <Input
-                    id="new-options"
-                    placeholder="Comma-separated options"
-                    {...createForm.register("options")}
-                  />
-                </Field>
-                <Field className="md:col-span-2">
-                  <FieldLabel htmlFor="new-description">Description</FieldLabel>
-                  <Textarea
-                    id="new-description"
-                    placeholder="Optional field hint"
-                    {...createForm.register("description")}
-                  />
-                </Field>
-                <Field className="md:col-span-2" orientation="horizontal">
-                  <Controller
-                    control={createForm.control}
-                    name="isRequired"
-                    render={({ field }) => (
-                      <Checkbox
-                        checked={field.value}
-                        onCheckedChange={(checked) => field.onChange(Boolean(checked))}
+          <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-3">
+            <div className="lg:col-span-1">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Add field</CardTitle>
+                  <CardDescription>
+                    Create a new field for this form.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <form
+                    className="flex flex-col gap-4"
+                    onSubmit={createForm.handleSubmit(handleCreateField)}
+                  >
+                    <Field>
+                      <FieldLabel htmlFor="new-label">Label</FieldLabel>
+                      <Input
+                        id="new-label"
+                        maxLength={100}
+                        placeholder="Full Name"
+                        required
+                        {...createForm.register("label", { required: true })}
                       />
-                    )}
-                  />
-                  <FieldDescription>Required field</FieldDescription>
-                </Field>
-                <div className="md:col-span-2">
-                  <Button type="submit" disabled={isCreating || !formId}>
-                    {isCreating ? "Creating..." : "Create Field"}
-                  </Button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
+                    </Field>
+                    <Field>
+                      <FieldLabel>Type</FieldLabel>
+                      <Controller
+                        control={createForm.control}
+                        name="type"
+                        render={({ field }) => (
+                          <Select value={field.value} onValueChange={field.onChange}>
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Select type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="TEXT">Text</SelectItem>
+                              <SelectItem value="NUMBER">Number</SelectItem>
+                              <SelectItem value="EMAIL">Email</SelectItem>
+                              <SelectItem value="YES_NO">Yes/No</SelectItem>
+                              <SelectItem value="PASSWORD">Password</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        )}
+                      />
+                    </Field>
+                    <Field>
+                      <FieldLabel htmlFor="new-placeholder">Placeholder</FieldLabel>
+                      <Input
+                        id="new-placeholder"
+                        placeholder="Enter value"
+                        {...createForm.register("placeholder")}
+                      />
+                    </Field>
+                    <Field>
+                      <FieldLabel htmlFor="new-options">Options</FieldLabel>
+                      <Input
+                        id="new-options"
+                        placeholder="Comma-separated options"
+                        {...createForm.register("options")}
+                      />
+                    </Field>
+                    <Field>
+                      <FieldLabel htmlFor="new-description">Description</FieldLabel>
+                      <Textarea
+                        id="new-description"
+                        placeholder="Optional field hint"
+                        {...createForm.register("description")}
+                      />
+                    </Field>
+                    <Field orientation="horizontal">
+                      <Controller
+                        control={createForm.control}
+                        name="isRequired"
+                        render={({ field }) => (
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={(checked) => field.onChange(Boolean(checked))}
+                          />
+                        )}
+                      />
+                      <FieldDescription>Required field</FieldDescription>
+                    </Field>
+                    <div className="pt-2">
+                      <Button className="w-full" type="submit" disabled={isCreating || !formId}>
+                        {isCreating ? "Creating..." : "Create Field"}
+                      </Button>
+                    </div>
+                  </form>
+                </CardContent>
+              </Card>
+            </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Fields</CardTitle>
-              <CardDescription>
-                Manage fields for this form.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="rounded-lg border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Label</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Required</TableHead>
-                      <TableHead>Index</TableHead>
-                      <TableHead className="w-32 text-right">Action</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
+            <div className="lg:col-span-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Fields</CardTitle>
+                  <CardDescription>
+                    Manage fields for this form.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-col gap-3">
                     {isLoading ? (
-                      <TableRow>
-                        <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
-                          Loading fields...
-                        </TableCell>
-                      </TableRow>
+                      <div className="flex h-24 items-center justify-center rounded-lg border border-dashed text-muted-foreground">
+                        Loading fields...
+                      </div>
                     ) : error ? (
-                      <TableRow>
-                        <TableCell colSpan={5} className="h-24 text-center text-destructive">
-                          Failed to load fields.
-                        </TableCell>
-                      </TableRow>
+                      <div className="flex h-24 items-center justify-center rounded-lg border border-dashed text-destructive">
+                        Failed to load fields.
+                      </div>
                     ) : fields?.length ? (
                       fields.map((field) => (
-                        <TableRow key={field.id}>
-                          <TableCell>
-                            <div className="flex flex-col">
-                              <span className="font-medium">{field.label}</span>
-                              <span className="text-xs text-muted-foreground">{field.labelKey}</span>
+                        <div
+                          key={field.id}
+                          className="group flex flex-col justify-between gap-4 rounded-lg border p-4 shadow-sm transition-all hover:border-primary/20 hover:bg-muted/30 sm:flex-row sm:items-center"
+                        >
+                          <div className="flex items-start gap-4 sm:items-center">
+                            <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary sm:mt-0">
+                              {getFieldIcon(field.type)}
                             </div>
-                          </TableCell>
-                          <TableCell>{field.type}</TableCell>
-                          <TableCell>{field.isRequired ? "Yes" : "No"}</TableCell>
-                          <TableCell>{String(field.index)}</TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex justify-end gap-2">
-                              <Button
-                                type="button"
-                                size="icon-sm"
-                                variant="outline"
-                                onClick={() => openEditDialog(field.id)}
-                              >
-                                <PencilIcon />
-                                <span className="sr-only">Edit</span>
-                              </Button>
-                              <Button
-                                type="button"
-                                size="icon-sm"
-                                variant="destructive"
-                                disabled={isDeleting}
-                                onClick={() => handleDeleteField(field.id)}
-                              >
-                                <Trash2Icon />
-                                <span className="sr-only">Delete</span>
-                              </Button>
+                            <div className="flex flex-col gap-1.5">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="font-semibold leading-none">{field.label}</span>
+                                {field.isRequired && (
+                                  <Badge variant="secondary" className="px-1.5 py-0 text-[10px] uppercase tracking-wider">
+                                    Required
+                                  </Badge>
+                                )}
+                                <Badge variant="outline" className="px-1.5 py-0 text-[10px] uppercase tracking-wider text-muted-foreground">
+                                  {field.type}
+                                </Badge>
+                              </div>
+                              <div className="text-sm text-muted-foreground flex items-center gap-2">
+                                <span className="font-mono text-xs">{field.labelKey}</span>
+                                {field.description && (
+                                  <>
+                                    <span className="h-1 w-1 rounded-full bg-muted-foreground/50" />
+                                    <span className="truncate">{field.description}</span>
+                                  </>
+                                )}
+                              </div>
                             </div>
-                          </TableCell>
-                        </TableRow>
+                          </div>
+                          <div className="flex shrink-0 items-center gap-2 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100">
+                            <Button
+                              type="button"
+                              size="icon-sm"
+                              variant="outline"
+                              onClick={() => openEditDialog(field.id)}
+                            >
+                              <PencilIcon className="h-4 w-4" />
+                              <span className="sr-only">Edit</span>
+                            </Button>
+                            <Button
+                              type="button"
+                              size="icon-sm"
+                              variant="destructive"
+                              disabled={isDeleting}
+                              onClick={() => handleDeleteField(field.id)}
+                            >
+                              <Trash2Icon className="h-4 w-4" />
+                              <span className="sr-only">Delete</span>
+                            </Button>
+                          </div>
+                        </div>
                       ))
                     ) : (
-                      <TableRow>
-                        <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
-                          No fields yet. Add your first field.
-                        </TableCell>
-                      </TableRow>
+                      <div className="flex h-24 items-center justify-center rounded-lg border border-dashed text-muted-foreground">
+                        No fields yet. Add your first field.
+                      </div>
                     )}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
         </div>
       </div>
 
