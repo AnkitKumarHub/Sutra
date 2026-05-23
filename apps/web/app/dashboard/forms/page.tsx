@@ -1,10 +1,12 @@
 "use client"
 
 import { useState } from "react"
-import { PlusIcon } from "lucide-react"
+import Link from "next/link"
+import { PlusIcon, UserRoundPen } from "lucide-react"
 import { useForm } from "react-hook-form"
 import { toast } from "sonner"
 
+import { Badge } from "~/components/ui/badge"
 import { Button } from "~/components/ui/button"
 import {
   Dialog,
@@ -21,8 +23,16 @@ import {
   FieldLabel,
 } from "~/components/ui/field"
 import { Input } from "~/components/ui/input"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "~/components/ui/table"
 import { Textarea } from "~/components/ui/textarea"
-import { useCreateForm } from "~/hooks/api/form"
+import { useCreateForm, useListForms } from "~/hooks/api/form"
 
 type CreateFormValues = {
   title: string
@@ -32,6 +42,7 @@ type CreateFormValues = {
 export default function FormsPage() {
   const [open, setOpen] = useState(false)
   const { createFormAsync, status } = useCreateForm()
+  const { forms, error, isLoading, isFetching } = useListForms()
   const form = useForm<CreateFormValues>()
   const isPending = status === "pending"
 
@@ -58,6 +69,17 @@ export default function FormsPage() {
     }
   }
 
+  const formatDate = (date: Date | string | null) => {
+    if (!date) {
+      return "Not updated"
+    }
+
+    return new Intl.DateTimeFormat("en", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(new Date(date))
+  }
+
   return (
     <div className="flex flex-1 flex-col">
       <div className="@container/main flex flex-1 flex-col gap-2">
@@ -73,6 +95,77 @@ export default function FormsPage() {
               <PlusIcon />
               Create Form
             </Button>
+          </div>
+
+          <div className="rounded-lg border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Form</TableHead>
+                  <TableHead className="hidden md:table-cell">Created</TableHead>
+                  <TableHead className="hidden lg:table-cell">Updated</TableHead>
+                  <TableHead className="w-24 text-right">Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
+                      Loading forms...
+                    </TableCell>
+                  </TableRow>
+                ) : error ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="h-24 text-center text-destructive">
+                      Failed to load forms.
+                    </TableCell>
+                  </TableRow>
+                ) : forms?.length ? (
+                  forms.map((item) => (
+                    <TableRow key={item.id}>
+                      <TableCell>
+                        <div className="flex min-w-0 flex-col gap-1">
+                          <Link
+                            href={`/dashboard/forms/${item.id}`}
+                            className="w-fit font-medium underline-offset-4 hover:underline"
+                          >
+                            {item.title}
+                          </Link>
+                          <p className="max-w-xl truncate text-sm text-muted-foreground">
+                            {item.description || "No description"}
+                          </p>
+                          {isFetching && (
+                            <Badge variant="secondary" className="mt-1">
+                              Refreshing
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="hidden text-muted-foreground md:table-cell">
+                        {formatDate(item.createdAt)}
+                      </TableCell>
+                      <TableCell className="hidden text-muted-foreground lg:table-cell">
+                        {formatDate(item.updatedAt)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button asChild size="sm" variant="outline">
+                          <Link href={`/dashboard/forms/${item.id}`}>
+                            {/* Edit */}
+                            <UserRoundPen />
+                          </Link>
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
+                      No forms yet. Create your first form to get started.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
           </div>
         </div>
       </div>

@@ -1,6 +1,8 @@
 import { trpc } from "~/trpc/client";
 
 export const useCreateForm = () => {
+  const utils = trpc.useUtils();
+
   const {
     mutateAsync: createFormAsync,
     mutate: createForm,
@@ -10,7 +12,11 @@ export const useCreateForm = () => {
     isIdle,
     isSuccess,
     status,
-  } = trpc.form.createForm.useMutation();  //utils.form.something.invalidate() when there is a cached query that should refresh after mutation.trpc.form.getForms.useQuery(), trpc.form.listForms.useQuery(), trpc.form.getFormById.useQuery()
+  } = trpc.form.createForm.useMutation({
+    onSuccess: async () => {
+      await utils.form.listForms.invalidate();
+    },
+  });
 
   return {
     createFormAsync,
@@ -20,6 +26,26 @@ export const useCreateForm = () => {
     isError,
     isIdle,
     isSuccess,
+    status,
+  };
+};
+
+export const useListForms = () => {
+  const {
+    data: forms,
+    error,
+    isFetching,
+    isFetched,
+    isLoading,
+    status,
+  } = trpc.form.listForms.useQuery();
+
+  return {
+    forms,
+    error,
+    isFetching,
+    isFetched,
+    isLoading,
     status,
   };
 };
