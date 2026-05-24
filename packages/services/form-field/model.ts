@@ -1,6 +1,16 @@
 import { z } from "zod";
 
-export const fieldTypeInput = z.enum(["TEXT", "NUMBER", "EMAIL", "YES_NO", "PASSWORD"]);
+export const fieldTypeInput = z.enum([
+  "SHORT_TEXT",
+  "LONG_TEXT",
+  "EMAIL",
+  "NUMBER",
+  "SINGLE_SELECT",
+  "MULTI_SELECT",
+  "CHECKBOX",
+  "RATING",
+  "DATE",
+]);
 
 export const createFieldInput = z.object({
   formId: z.uuid().describe("The unique identifier of the form"),

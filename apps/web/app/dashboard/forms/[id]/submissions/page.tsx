@@ -129,8 +129,12 @@ export default function FormSubmissionsPage() {
                               return <TableCell key={field.id}>—</TableCell>
                             }
 
-                            if (field.type === "YES_NO" && typeof rawValue === "boolean") {
+                            if (field.type === "CHECKBOX" && typeof rawValue === "boolean") {
                               return <TableCell key={field.id}>{rawValue ? "Yes" : "No"}</TableCell>
+                            }
+
+                            if (Array.isArray(rawValue)) {
+                              return <TableCell key={field.id}>{rawValue.join(", ") || "â€”"}</TableCell>
                             }
 
                             return <TableCell key={field.id}>{String(rawValue)}</TableCell>

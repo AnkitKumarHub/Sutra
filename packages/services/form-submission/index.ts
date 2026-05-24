@@ -54,11 +54,11 @@ class FormSubmissionService {
 
       const value = submissionValue.value;
 
-      if (field.type === "NUMBER") {
+      if (field.type === "NUMBER" || field.type === "RATING") {
         if (typeof value !== "number" || !Number.isFinite(value)) {
           throw new Error(`Field ${submissionValue.fieldId} must be a valid number`);
         }
-      } else if (field.type === "YES_NO") {
+      } else if (field.type === "CHECKBOX") {
         if (typeof value !== "boolean") {
           throw new Error(`Field ${submissionValue.fieldId} must be a boolean`);
         }
@@ -66,9 +66,24 @@ class FormSubmissionService {
         if (typeof value !== "string" || !emailSchema.safeParse(value).success) {
           throw new Error(`Field ${submissionValue.fieldId} must be a valid email`);
         }
-      } else if (field.type === "TEXT" || field.type === "PASSWORD") {
+      } else if (field.type === "SHORT_TEXT" || field.type === "LONG_TEXT") {
         if (typeof value !== "string") {
           throw new Error(`Field ${submissionValue.fieldId} must be text`);
+        }
+      } else if (field.type === "SINGLE_SELECT") {
+        if (typeof value !== "string") {
+          throw new Error(`Field ${submissionValue.fieldId} must be a string`);
+        }
+      } else if (field.type === "MULTI_SELECT") {
+        if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) {
+          throw new Error(`Field ${submissionValue.fieldId} must be a string array`);
+        }
+      } else if (field.type === "DATE") {
+        if (
+          typeof value !== "string" ||
+          Number.isNaN(new Date(value).getTime())
+        ) {
+          throw new Error(`Field ${submissionValue.fieldId} must be a valid date string`);
         }
       }
 
@@ -76,6 +91,14 @@ class FormSubmissionService {
         field.isRequired &&
         typeof value === "string" &&
         value.trim().length === 0
+      ) {
+        throw new Error(`Field ${submissionValue.fieldId} is required`);
+      }
+
+      if (
+        field.isRequired &&
+        Array.isArray(value) &&
+        value.length === 0
       ) {
         throw new Error(`Field ${submissionValue.fieldId} is required`);
       }

@@ -30,7 +30,17 @@ export const listFormsOutputModel = z.array(
   }),
 );
 
-export const formFieldTypeModel = z.enum(["TEXT", "NUMBER", "EMAIL", "YES_NO", "PASSWORD"]);
+export const formFieldTypeModel = z.enum([
+  "SHORT_TEXT",
+  "LONG_TEXT",
+  "EMAIL",
+  "NUMBER",
+  "SINGLE_SELECT",
+  "MULTI_SELECT",
+  "CHECKBOX",
+  "RATING",
+  "DATE",
+]);
 
 export const createFieldInputModel = z.object({
   formId: z.uuid().describe("Unique identifier for the form"),
@@ -123,7 +133,9 @@ export const submitPublicFormInputModel = z.object({
   values: z.array(
     z.object({
       fieldId: z.uuid().describe("Unique identifier for the field"),
-      value: z.union([z.string(), z.number(), z.boolean()]).describe("Submitted answer"),
+      value: z
+        .union([z.string(), z.number(), z.boolean(), z.array(z.string())])
+        .describe("Submitted answer"),
     }),
   ),
 });
@@ -138,7 +150,9 @@ export const getFormSubmissionsInputModel = z.object({
 
 export const formSubmissionValueOutputModel = z.object({
   fieldId: z.uuid().describe("Unique identifier for the field"),
-  value: z.union([z.string(), z.number(), z.boolean()]).describe("Submitted answer value"),
+  value: z
+    .union([z.string(), z.number(), z.boolean(), z.array(z.string())])
+    .describe("Submitted answer value"),
 });
 
 export const getFormSubmissionsOutputModel = z.array(

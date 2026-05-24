@@ -14,6 +14,7 @@ import {
 	FieldLabel,
 } from "~/components/ui/field";
 import { Input } from "~/components/ui/input";
+import { Textarea } from "~/components/ui/textarea";
 import { useGetPublicFormById, useSubmitPublicForm } from "~/hooks/api/form";
 
 type PublicForm = NonNullable<ReturnType<typeof useGetPublicFormById>["form"]>;
@@ -23,9 +24,10 @@ const getInputType = (type: PublicField["type"]) => {
 	switch (type) {
 		case "EMAIL":
 			return "email";
-		case "PASSWORD":
-			return "password";
+		case "DATE":
+			return "date";
 		case "NUMBER":
+		case "RATING":
 			return "number";
 		default:
 			return "text";
@@ -35,7 +37,7 @@ const getInputType = (type: PublicField["type"]) => {
 export default function PublicFormPage() {
 	const params = useParams<{ form_id?: string }>();
 	const formId = Array.isArray(params.form_id) ? params.form_id[0] : params.form_id;
-	const [fieldValues, setFieldValues] = useState<Record<string, string | boolean>>({});
+	const [fieldValues, setFieldValues] = useState<Record<string, string | boolean | string[]>>({});
 
 	const { form, error, isLoading, isFetching } = useGetPublicFormById(formId ?? "");
 	const { submitPublicFormAsync, status: submitStatus } = useSubmitPublicForm();
@@ -48,10 +50,10 @@ export default function PublicFormPage() {
 			return;
 		}
 
-		const values: Array<{ fieldId: string; value: string | number | boolean }> = [];
+		const values: Array<{ fieldId: string; value: string | number | boolean | string[] }> = [];
 
 		for (const field of form.fields) {
-			if (field.type === "YES_NO") {
+			if (field.type === "CHECKBOX") {
 				values.push({
 					fieldId: field.id,
 					value: Boolean(fieldValues[field.id]),
@@ -69,7 +71,7 @@ export default function PublicFormPage() {
 				continue;
 			}
 
-			if (field.type === "NUMBER") {
+			if (field.type === "NUMBER" || field.type === "RATING") {
 				const parsedNumber = Number(trimmedValue);
 				if (!Number.isFinite(parsedNumber)) {
 					toast.error(`${field.label} must be a valid number`);
@@ -81,6 +83,26 @@ export default function PublicFormPage() {
 					value: parsedNumber,
 				});
 				continue;
+			}
+
+			if (field.type === "MULTI_SELECT") {
+				const parsedValues = trimmedValue
+					.split(",")
+					.map((item) => item.trim())
+					.filter(Boolean);
+
+				values.push({
+					fieldId: field.id,
+					value: parsedValues,
+				});
+				continue;
+			}
+
+			if (field.type === "DATE") {
+				if (Number.isNaN(new Date(trimmedValue).getTime())) {
+					toast.error(`${field.label} must be a valid date`);
+					return;
+				}
 			}
 
 			values.push({
@@ -143,10 +165,11 @@ export default function PublicFormPage() {
 					<FieldGroup>
 						{form.fields.map((field) => {
 							const inputId = `field-${field.id}`;
-							const isYesNo = field.type === "YES_NO";
+							const isCheckbox = field.type === "CHECKBOX";
+							const isLongText = field.type === "LONG_TEXT";
 							const rawFieldValue = fieldValues[field.id];
 							const stringValue = typeof rawFieldValue === "string" ? rawFieldValue : "";
-							const control = isYesNo ? (
+							const control = isCheckbox ? (
 							<div className="flex items-center gap-2">
 								<Checkbox
 									id={inputId}
@@ -162,6 +185,20 @@ export default function PublicFormPage() {
 								/>
 								<span className="text-sm text-muted-foreground">Yes</span>
 							</div>
+						) : isLongText ? (
+							<Textarea
+								id={inputId}
+								name={field.labelKey}
+								value={stringValue}
+								placeholder={field.placeholder ?? undefined}
+								disabled={isSubmitting}
+								onChange={(event) => {
+									setFieldValues((prev) => ({
+										...prev,
+										[field.id]: event.target.value,
+									}));
+								}}
+							/>
 						) : (
 							<Input
 								id={inputId}

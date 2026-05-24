@@ -31,7 +31,16 @@ import {
 } from "~/components/ui/select"
 import { Textarea } from "~/components/ui/textarea"
 
-type FieldType = "TEXT" | "NUMBER" | "EMAIL" | "YES_NO" | "PASSWORD"
+type FieldType =
+  | "SHORT_TEXT"
+  | "LONG_TEXT"
+  | "EMAIL"
+  | "NUMBER"
+  | "SINGLE_SELECT"
+  | "MULTI_SELECT"
+  | "CHECKBOX"
+  | "RATING"
+  | "DATE"
 
 type CreateFieldValues = {
   label: string
@@ -53,15 +62,19 @@ type UpdateFieldValues = {
 
 const getFieldIcon = (type: FieldType) => {
   switch (type) {
-    case "TEXT":
+    case "SHORT_TEXT":
+    case "LONG_TEXT":
       return <TypeIcon className="h-5 w-5" />
     case "NUMBER":
+    case "RATING":
       return <HashIcon className="h-5 w-5" />
     case "EMAIL":
       return <MailIcon className="h-5 w-5" />
-    case "YES_NO":
+    case "CHECKBOX":
       return <ToggleLeftIcon className="h-5 w-5" />
-    case "PASSWORD":
+    case "SINGLE_SELECT":
+    case "MULTI_SELECT":
+    case "DATE":
       return <KeyIcon className="h-5 w-5" />
     default:
       return <TypeIcon className="h-5 w-5" />
@@ -83,7 +96,7 @@ export default function FormBuilderPage() {
       label: "",
       description: "",
       placeholder: "",
-      type: "TEXT",
+      type: "SHORT_TEXT",
       isRequired: false,
       options: "",
     },
@@ -93,7 +106,7 @@ export default function FormBuilderPage() {
       label: "",
       description: "",
       placeholder: "",
-      type: "TEXT",
+      type: "SHORT_TEXT",
       isRequired: false,
       options: "",
     },
@@ -127,7 +140,7 @@ export default function FormBuilderPage() {
         label: "",
         description: "",
         placeholder: "",
-        type: "TEXT",
+        type: "SHORT_TEXT",
         isRequired: false,
         options: "",
       })
@@ -158,7 +171,7 @@ export default function FormBuilderPage() {
       label: "",
       description: "",
       placeholder: "",
-      type: "TEXT",
+      type: "SHORT_TEXT",
       isRequired: false,
       options: "",
     })
@@ -258,11 +271,15 @@ export default function FormBuilderPage() {
                               <SelectValue placeholder="Select type" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="TEXT">Text</SelectItem>
+                              <SelectItem value="SHORT_TEXT">Short Text</SelectItem>
+                              <SelectItem value="LONG_TEXT">Long Text</SelectItem>
                               <SelectItem value="NUMBER">Number</SelectItem>
                               <SelectItem value="EMAIL">Email</SelectItem>
-                              <SelectItem value="YES_NO">Yes/No</SelectItem>
-                              <SelectItem value="PASSWORD">Password</SelectItem>
+                              <SelectItem value="SINGLE_SELECT">Single Select</SelectItem>
+                              <SelectItem value="MULTI_SELECT">Multi Select</SelectItem>
+                              <SelectItem value="CHECKBOX">Checkbox</SelectItem>
+                              <SelectItem value="RATING">Rating</SelectItem>
+                              <SelectItem value="DATE">Date</SelectItem>
                             </SelectContent>
                           </Select>
                         )}
@@ -432,11 +449,15 @@ export default function FormBuilderPage() {
                         <SelectValue placeholder="Select type" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="TEXT">Text</SelectItem>
+                        <SelectItem value="SHORT_TEXT">Short Text</SelectItem>
+                        <SelectItem value="LONG_TEXT">Long Text</SelectItem>
                         <SelectItem value="NUMBER">Number</SelectItem>
                         <SelectItem value="EMAIL">Email</SelectItem>
-                        <SelectItem value="YES_NO">Yes/No</SelectItem>
-                        <SelectItem value="PASSWORD">Password</SelectItem>
+                        <SelectItem value="SINGLE_SELECT">Single Select</SelectItem>
+                        <SelectItem value="MULTI_SELECT">Multi Select</SelectItem>
+                        <SelectItem value="CHECKBOX">Checkbox</SelectItem>
+                        <SelectItem value="RATING">Rating</SelectItem>
+                        <SelectItem value="DATE">Date</SelectItem>
                       </SelectContent>
                     </Select>
                   )}

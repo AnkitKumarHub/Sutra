@@ -3,7 +3,7 @@ import { formTables } from "./form";
 
 export interface FormSubmissionValue {
   fieldId: string;
-  value: string | number | boolean;
+  value: string | number | boolean | string[];
 }
 
 export type FormSubmissionValuesRow = FormSubmissionValue[];
