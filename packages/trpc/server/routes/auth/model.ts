@@ -18,6 +18,18 @@ export const signInUserWithEmailAndPaswordOutputModel = z.object({
   id: z.string().describe("Unique identifier for the user"),
 });
 
+export const refreshTokenInputModel = z.undefined();
+
+export const refreshTokenOutputModel = z.object({
+  id: z.string().describe("Unique identifier for the user"),
+});
+
+export const signOutInputModel = z.undefined();
+
+export const signOutOutputModel = z.object({
+  success: z.boolean().describe("Whether the sign out operation succeeded"),
+});
+
 // here i dont want to call token so i want to make some disconnect
 //cookie is something which automatically comes with the request 
 export const getLoggedInUserInfoInputModel = z.undefined(); 

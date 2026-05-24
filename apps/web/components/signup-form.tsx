@@ -27,7 +27,7 @@ export function SignupForm({ className, ...props }: React.ComponentProps<"div">)
     try {
       const { id } = await createUserWithEmailAndPassowrdAsync({email: values.email, password: values.password, fullName: values.fullName});
       console.log("User created with ID:", id);
-      router.replace("/login");
+      router.replace("/dashboard");
     } catch (error) {
       console.error("Error creating user:", error);
     }

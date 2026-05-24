@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+export const formStatusModel = z.enum(["DRAFT", "PUBLISHED", "ARCHIVED"]);
+
 export const createFormInputModel = z.object({
   title: z
     .string()
@@ -25,10 +27,47 @@ export const listFormsOutputModel = z.array(
     id: z.string().describe("Unique identifier for the form"),
     title: z.string().describe("The title of the form"),
     description: z.string().nullable().describe("The optional description of the form"),
+    status: formStatusModel.describe("The current status of the form"),
     createdAt: z.date().nullable().describe("Creation Timestamp"),
     updatedAt: z.date().nullable().describe("Last Updated Timestamp"),
   }),
 );
+
+export const updateFormInputModel = z.object({
+  formId: z.string().uuid().describe("Unique identifier for the form"),
+  title: z.string().min(1).max(55).optional().describe("New title for the form"),
+  description: z.string().max(255).optional().nullable().describe("New description for the form"),
+});
+
+export const updateFormOutputModel = z.object({
+  id: z.string().describe("Unique identifier for the updated form"),
+});
+
+export const publishFormInputModel = z.object({
+  formId: z.string().uuid().describe("Unique identifier for the form"),
+});
+
+export const publishFormOutputModel = z.object({
+  id: z.string().describe("Unique identifier for the published form"),
+  status: formStatusModel.describe("The new status of the form"),
+});
+
+export const unpublishFormInputModel = z.object({
+  formId: z.string().uuid().describe("Unique identifier for the form"),
+});
+
+export const unpublishFormOutputModel = z.object({
+  id: z.string().describe("Unique identifier for the unpublished form"),
+  status: formStatusModel.describe("The new status of the form"),
+});
+
+export const deleteFormInputModel = z.object({
+  formId: z.string().uuid().describe("Unique identifier for the form"),
+});
+
+export const deleteFormOutputModel = z.object({
+  id: z.string().describe("Unique identifier for the deleted form"),
+});
 
 export const formFieldTypeModel = z.enum([
   "SHORT_TEXT",
@@ -43,7 +82,7 @@ export const formFieldTypeModel = z.enum([
 ]);
 
 export const createFieldInputModel = z.object({
-  formId: z.uuid().describe("Unique identifier for the form"),
+  formId: z.string().uuid().describe("Unique identifier for the form"),
   label: z.string().min(1).max(100).describe("Display label of the field"),
   description: z.string().optional().nullable().describe("Optional field description"),
   placeholder: z.string().optional().nullable().describe("Optional field placeholder"),
@@ -59,7 +98,7 @@ export const createFieldOutputModel = z.object({
 });
 
 export const updateFieldInputModel = z.object({
-  fieldId: z.uuid().describe("Unique identifier for the field"),
+  fieldId: z.string().uuid().describe("Unique identifier for the field"),
   label: z.string().min(1).max(100).optional().describe("Display label of the field"),
   description: z.string().optional().nullable().describe("Optional field description"),
   placeholder: z.string().optional().nullable().describe("Optional field placeholder"),
@@ -73,7 +112,7 @@ export const updateFieldOutputModel = z.object({
 });
 
 export const deleteFieldInputModel = z.object({
-  fieldId: z.uuid().describe("Unique identifier for the field"),
+  fieldId: z.string().uuid().describe("Unique identifier for the field"),
 });
 
 export const deleteFieldOutputModel = z.object({
@@ -81,7 +120,7 @@ export const deleteFieldOutputModel = z.object({
 });
 
 export const getFieldsByFormIdInputModel = z.object({
-  formId: z.uuid().describe("Unique identifier for the form"),
+  formId: z.string().uuid().describe("Unique identifier for the form"),
 });
 
 export const getFieldsByFormIdOutputModel = z.array(
@@ -101,10 +140,6 @@ export const getFieldsByFormIdOutputModel = z.array(
   }),
 );
 
-export const getPublicFormByIdInputModel = z.object({
-  formId: z.uuid().describe("Unique identifier for the form"),
-});
-
 export const publicFieldOutputModel = z.object({
   id: z.string().describe("Unique identifier for the field"),
   label: z.string().describe("Display label of the field"),
@@ -119,20 +154,39 @@ export const publicFieldOutputModel = z.object({
   updatedAt: z.date().nullable().describe("Last updated timestamp"),
 });
 
-export const getPublicFormByIdOutputModel = z.object({
+export const getFormByIdInputModel = z.object({
+  formId: z.string().uuid().describe("Unique identifier for the form"),
+});
+
+export const getFormByIdOutputModel = z.object({
   id: z.string().describe("Unique identifier for the form"),
   title: z.string().describe("The title of the form"),
   description: z.string().nullable().describe("The optional description of the form"),
+  status: formStatusModel.describe("The current status of the form"),
+  createdAt: z.date().nullable().describe("Creation timestamp"),
+  updatedAt: z.date().nullable().describe("Last updated timestamp"),
+  fields: z.array(publicFieldOutputModel).describe("Ordered fields for rendering"),
+});
+
+export const getPublishedFormByIdInputModel = z.object({
+  formId: z.string().uuid().describe("Unique identifier for the form"),
+});
+
+export const getPublishedFormByIdOutputModel = z.object({
+  id: z.string().describe("Unique identifier for the form"),
+  title: z.string().describe("The title of the form"),
+  description: z.string().nullable().describe("The optional description of the form"),
+  status: formStatusModel.describe("The current status of the form"),
   createdAt: z.date().nullable().describe("Creation timestamp"),
   updatedAt: z.date().nullable().describe("Last updated timestamp"),
   fields: z.array(publicFieldOutputModel).describe("Ordered fields for rendering"),
 });
 
 export const submitPublicFormInputModel = z.object({
-  formId: z.uuid().describe("Unique identifier for the form"),
+  formId: z.string().uuid().describe("Unique identifier for the form"),
   values: z.array(
     z.object({
-      fieldId: z.uuid().describe("Unique identifier for the field"),
+      fieldId: z.string().uuid().describe("Unique identifier for the field"),
       value: z
         .union([z.string(), z.number(), z.boolean(), z.array(z.string())])
         .describe("Submitted answer"),
@@ -145,11 +199,11 @@ export const submitPublicFormOutputModel = z.object({
 });
 
 export const getFormSubmissionsInputModel = z.object({
-  formId: z.uuid().describe("Unique identifier for the form"),
+  formId: z.string().uuid().describe("Unique identifier for the form"),
 });
 
 export const formSubmissionValueOutputModel = z.object({
-  fieldId: z.uuid().describe("Unique identifier for the field"),
+  fieldId: z.string().uuid().describe("Unique identifier for the field"),
   value: z
     .union([z.string(), z.number(), z.boolean(), z.array(z.string())])
     .describe("Submitted answer value"),
@@ -157,8 +211,8 @@ export const formSubmissionValueOutputModel = z.object({
 
 export const getFormSubmissionsOutputModel = z.array(
   z.object({
-    id: z.uuid().describe("Unique identifier for the submission"),
-    formId: z.uuid().nullable().describe("Parent form identifier"),
+    id: z.string().uuid().describe("Unique identifier for the submission"),
+    formId: z.string().uuid().nullable().describe("Parent form identifier"),
     values: z
       .array(formSubmissionValueOutputModel)
       .nullable()

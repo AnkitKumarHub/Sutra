@@ -14,6 +14,7 @@ export const fieldTypeInput = z.enum([
 
 export const createFieldInput = z.object({
   formId: z.uuid().describe("The unique identifier of the form"),
+  userId: z.uuid().describe("The unique identifier of the user creating the field"),
   label: z.string().min(1).max(100).describe("The display label of the field"),
   description: z.string().optional().nullable().describe("The optional description of the field"),
   placeholder: z.string().optional().nullable().describe("The optional placeholder of the field"),
@@ -30,6 +31,7 @@ export type CreateFieldInputType = z.infer<typeof createFieldInput>;
 
 export const updateFieldInput = z.object({
   fieldId: z.uuid().describe("The unique identifier of the field"),
+  userId: z.uuid().describe("The unique identifier of the requesting user (must be the form owner)"),
   label: z.string().min(1).max(100).optional().describe("The display label of the field"),
   description: z.string().optional().nullable().describe("The optional description of the field"),
   placeholder: z.string().optional().nullable().describe("The optional placeholder of the field"),
@@ -46,6 +48,7 @@ export type UpdateFieldInputType = z.infer<typeof updateFieldInput>;
 
 export const deleteFieldInput = z.object({
   fieldId: z.uuid().describe("The unique identifier of the field"),
+  userId: z.uuid().describe("The unique identifier of the requesting user (must be the form owner)"),
 });
 
 export type DeleteFieldInputType = z.infer<typeof deleteFieldInput>;

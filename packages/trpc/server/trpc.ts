@@ -17,11 +17,16 @@ export const authenticatedProcedure = tRPCContext.procedure.use(async (options) 
 
   const userToken = getAuthenticationCookie(ctx);
   if (!userToken) {
-    throw new Error("Unauthorized: No authentication token found");
+    throw new TRPCError({ code: "UNAUTHORIZED", message: "No authentication token found" });
   }
 
   const { id } =
     await userService.verifyAndDecodeUserToken(userToken);
+
+  const user = await userService.getUserInfoById(id);
+  if (user.isBlocked) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "User is blocked" });
+  }
 
   return options.next({
     ctx: {
@@ -29,4 +34,15 @@ export const authenticatedProcedure = tRPCContext.procedure.use(async (options) 
       user: { id },
     },
   });
+});
+
+export const adminProcedure = authenticatedProcedure.use(async (options) => {
+  const { ctx } = options;
+
+  const user = await userService.getUserInfoById(ctx.user.id);
+  if (user.role !== "ADMIN") {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required" });
+  }
+
+  return options.next();
 });

@@ -2,12 +2,22 @@
 
 import { useMemo, useState } from "react"
 import Link from "next/link"
-import { useParams } from "next/navigation"
-import { PencilIcon, Trash2Icon, TypeIcon, HashIcon, MailIcon, ToggleLeftIcon, KeyIcon } from "lucide-react"
+import { useParams, useRouter } from "next/navigation"
+import { PencilIcon, Trash2Icon, TypeIcon, HashIcon, MailIcon, ToggleLeftIcon, KeyIcon, GlobeIcon, SettingsIcon } from "lucide-react"
 import { Controller, useForm } from "react-hook-form"
 import { toast } from "sonner"
 
-import { useCreateField, useDeleteField, useGetFields, useUpdateField } from "~/hooks/api/form"
+import { 
+  useCreateField, 
+  useDeleteField, 
+  useGetFields, 
+  useUpdateField,
+  useGetFormById,
+  useUpdateForm,
+  usePublishForm,
+  useUnpublishForm,
+  useDeleteForm
+} from "~/hooks/api/form"
 import { Badge } from "~/components/ui/badge"
 import { Button } from "~/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card"
@@ -60,6 +70,11 @@ type UpdateFieldValues = {
   options?: string
 }
 
+type EditFormValues = {
+  title: string
+  description?: string
+}
+
 const getFieldIcon = (type: FieldType) => {
   switch (type) {
     case "SHORT_TEXT":
@@ -84,14 +99,24 @@ const getFieldIcon = (type: FieldType) => {
 export default function FormBuilderPage() {
   const params = useParams<{ id: string }>()
   const formId = Array.isArray(params.id) ? params.id[0] : params.id
+  const router = useRouter()
 
-  const { fields, isLoading, isFetching, error } = useGetFields(formId ?? "")
+  const { form, isLoading: isFormLoading } = useGetFormById(formId ?? "")
+  const { fields, isLoading: isFieldsLoading, isFetching: isFieldsFetching, error: fieldsError } = useGetFields(formId ?? "")
+  
   const { createFieldAsync, status: createStatus } = useCreateField(formId ?? "")
   const { updateFieldAsync, status: updateStatus } = useUpdateField(formId ?? "")
   const { deleteFieldAsync, status: deleteStatus } = useDeleteField(formId ?? "")
 
+  const { updateFormAsync, status: updateFormStatus } = useUpdateForm(formId ?? "")
+  const { publishFormAsync, status: publishStatus } = usePublishForm(formId ?? "")
+  const { unpublishFormAsync, status: unpublishStatus } = useUnpublishForm(formId ?? "")
+  const { deleteFormAsync, status: deleteFormStatus } = useDeleteForm()
+
   const [editingFieldId, setEditingFieldId] = useState<string | null>(null)
-  const createForm = useForm<CreateFieldValues>({
+  const [isEditingForm, setIsEditingForm] = useState(false)
+
+  const createFieldForm = useForm<CreateFieldValues>({
     defaultValues: {
       label: "",
       description: "",
@@ -101,7 +126,7 @@ export default function FormBuilderPage() {
       options: "",
     },
   })
-  const updateForm = useForm<UpdateFieldValues>({
+  const updateFieldForm = useForm<UpdateFieldValues>({
     defaultValues: {
       label: "",
       description: "",
@@ -109,6 +134,13 @@ export default function FormBuilderPage() {
       type: "SHORT_TEXT",
       isRequired: false,
       options: "",
+    },
+  })
+  
+  const editFormForm = useForm<EditFormValues>({
+    defaultValues: {
+      title: "",
+      description: "",
     },
   })
 
@@ -120,6 +152,9 @@ export default function FormBuilderPage() {
   const isCreating = createStatus === "pending"
   const isUpdating = updateStatus === "pending"
   const isDeleting = deleteStatus === "pending"
+  const isUpdatingForm = updateFormStatus === "pending"
+  const isTogglingPublish = publishStatus === "pending" || unpublishStatus === "pending"
+  const isDeletingForm = deleteFormStatus === "pending"
 
   const handleCreateField = async (values: CreateFieldValues) => {
     if (!formId) return
@@ -136,7 +171,7 @@ export default function FormBuilderPage() {
       })
 
       toast.success("Field created")
-      createForm.reset({
+      createFieldForm.reset({
         label: "",
         description: "",
         placeholder: "",
@@ -155,7 +190,7 @@ export default function FormBuilderPage() {
     if (!field) return
 
     setEditingFieldId(fieldId)
-    updateForm.reset({
+    updateFieldForm.reset({
       label: field.label,
       description: field.description ?? "",
       placeholder: field.placeholder ?? "",
@@ -167,7 +202,7 @@ export default function FormBuilderPage() {
 
   const closeEditDialog = () => {
     setEditingFieldId(null)
-    updateForm.reset({
+    updateFieldForm.reset({
       label: "",
       description: "",
       placeholder: "",
@@ -212,26 +247,104 @@ export default function FormBuilderPage() {
     }
   }
 
+  const openEditFormDialog = () => {
+    if (!form) return
+    editFormForm.reset({
+      title: form.title,
+      description: form.description ?? "",
+    })
+    setIsEditingForm(true)
+  }
+
+  const handleUpdateForm = async (values: EditFormValues) => {
+    if (!formId) return
+    try {
+      await updateFormAsync({
+        formId,
+        title: values.title,
+        description: values.description || null,
+      })
+      toast.success("Form updated")
+      setIsEditingForm(false)
+    } catch (err) {
+      console.error("Failed to update form:", err)
+      toast.error("Failed to update form")
+    }
+  }
+
+  const handleTogglePublish = async () => {
+    if (!formId || !form) return
+    try {
+      if (form.status === "PUBLISHED") {
+        await unpublishFormAsync({ formId })
+        toast.success("Form unpublished")
+      } else {
+        await publishFormAsync({ formId })
+        toast.success("Form published")
+      }
+    } catch (err) {
+      console.error("Failed to toggle publish status:", err)
+      toast.error("Failed to update form status")
+    }
+  }
+
+  const handleDeleteForm = async () => {
+    if (!formId) return
+    const shouldDelete = window.confirm("Are you sure you want to delete this form? This action cannot be undone.")
+    if (!shouldDelete) return
+    
+    try {
+      await deleteFormAsync({ formId })
+      toast.success("Form deleted")
+      router.push("/dashboard/forms")
+    } catch (err) {
+      console.error("Failed to delete form:", err)
+      toast.error("Failed to delete form")
+    }
+  }
+
   return (
     <div className="flex flex-1 flex-col">
       <div className="@container/main flex flex-1 flex-col gap-2">
         <div className="flex flex-col gap-4 px-4 py-4 md:gap-6 md:px-6 md:py-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between rounded-lg border bg-card p-6 shadow-sm">
             <div className="space-y-2">
-              <h1 className="text-2xl font-semibold tracking-tight">Form builder</h1>
-              <p className="text-sm text-muted-foreground">
-                Editing form {formId}.
-              </p>
-              {isFetching && (
-                <Badge variant="secondary">Refreshing</Badge>
+              {isFormLoading ? (
+                <div className="h-8 w-48 animate-pulse rounded bg-muted" />
+              ) : (
+                <>
+                  <div className="flex items-center gap-3">
+                    <h1 className="text-2xl font-semibold tracking-tight">{form?.title}</h1>
+                    <Badge variant={form?.status === "PUBLISHED" ? "default" : "secondary"}>
+                      {form?.status}
+                    </Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground max-w-xl">
+                    {form?.description || "No description provided."}
+                  </p>
+                </>
               )}
             </div>
-            <div className="flex items-center gap-2">
-              <Button asChild variant="outline">
-                <Link href={`/dashboard/forms/${formId}/submissions`}>View submissions</Link>
+            
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="outline" size="sm" onClick={openEditFormDialog} disabled={isFormLoading}>
+                <SettingsIcon className="mr-2 h-4 w-4" />
+                Edit Form
               </Button>
-              <Button asChild variant="outline">
-                <Link href="/dashboard/forms">Back to forms</Link>
+              <Button 
+                variant={form?.status === "PUBLISHED" ? "secondary" : "default"} 
+                size="sm" 
+                onClick={handleTogglePublish}
+                disabled={isFormLoading || isTogglingPublish}
+              >
+                <GlobeIcon className="mr-2 h-4 w-4" />
+                {form?.status === "PUBLISHED" ? "Unpublish" : "Publish"}
+              </Button>
+              <Button asChild variant="outline" size="sm">
+                <Link href={`/dashboard/forms/${formId}/submissions`}>Submissions</Link>
+              </Button>
+              <Button variant="destructive" size="sm" onClick={handleDeleteForm} disabled={isDeletingForm}>
+                <Trash2Icon className="h-4 w-4" />
               </Button>
             </div>
           </div>
@@ -248,7 +361,7 @@ export default function FormBuilderPage() {
                 <CardContent>
                   <form
                     className="flex flex-col gap-4"
-                    onSubmit={createForm.handleSubmit(handleCreateField)}
+                    onSubmit={createFieldForm.handleSubmit(handleCreateField)}
                   >
                     <Field>
                       <FieldLabel htmlFor="new-label">Label</FieldLabel>
@@ -257,13 +370,13 @@ export default function FormBuilderPage() {
                         maxLength={100}
                         placeholder="Full Name"
                         required
-                        {...createForm.register("label", { required: true })}
+                        {...createFieldForm.register("label", { required: true })}
                       />
                     </Field>
                     <Field>
                       <FieldLabel>Type</FieldLabel>
                       <Controller
-                        control={createForm.control}
+                        control={createFieldForm.control}
                         name="type"
                         render={({ field }) => (
                           <Select value={field.value} onValueChange={field.onChange}>
@@ -290,7 +403,7 @@ export default function FormBuilderPage() {
                       <Input
                         id="new-placeholder"
                         placeholder="Enter value"
-                        {...createForm.register("placeholder")}
+                        {...createFieldForm.register("placeholder")}
                       />
                     </Field>
                     <Field>
@@ -298,7 +411,7 @@ export default function FormBuilderPage() {
                       <Input
                         id="new-options"
                         placeholder="Comma-separated options"
-                        {...createForm.register("options")}
+                        {...createFieldForm.register("options")}
                       />
                     </Field>
                     <Field>
@@ -306,12 +419,12 @@ export default function FormBuilderPage() {
                       <Textarea
                         id="new-description"
                         placeholder="Optional field hint"
-                        {...createForm.register("description")}
+                        {...createFieldForm.register("description")}
                       />
                     </Field>
                     <Field orientation="horizontal">
                       <Controller
-                        control={createForm.control}
+                        control={createFieldForm.control}
                         name="isRequired"
                         render={({ field }) => (
                           <Checkbox
@@ -334,19 +447,24 @@ export default function FormBuilderPage() {
 
             <div className="lg:col-span-2">
               <Card>
-                <CardHeader>
-                  <CardTitle>Fields</CardTitle>
-                  <CardDescription>
-                    Manage fields for this form.
-                  </CardDescription>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0">
+                  <div className="space-y-1.5">
+                    <CardTitle>Fields</CardTitle>
+                    <CardDescription>
+                      Manage fields for this form.
+                    </CardDescription>
+                  </div>
+                  {isFieldsFetching && !isFieldsLoading && (
+                     <Badge variant="secondary" className="animate-pulse">Refreshing...</Badge>
+                  )}
                 </CardHeader>
                 <CardContent>
                   <div className="flex flex-col gap-3">
-                    {isLoading ? (
+                    {isFieldsLoading ? (
                       <div className="flex h-24 items-center justify-center rounded-lg border border-dashed text-muted-foreground">
                         Loading fields...
                       </div>
-                    ) : error ? (
+                    ) : fieldsError ? (
                       <div className="flex h-24 items-center justify-center rounded-lg border border-dashed text-destructive">
                         Failed to load fields.
                       </div>
@@ -427,7 +545,7 @@ export default function FormBuilderPage() {
               Update field configuration.
             </DialogDescription>
           </DialogHeader>
-          <form className="flex flex-col gap-6" onSubmit={updateForm.handleSubmit(handleUpdateField)}>
+          <form className="flex flex-col gap-6" onSubmit={updateFieldForm.handleSubmit(handleUpdateField)}>
             <FieldGroup>
               <Field>
                 <FieldLabel htmlFor="edit-label">Label</FieldLabel>
@@ -435,13 +553,13 @@ export default function FormBuilderPage() {
                   id="edit-label"
                   maxLength={100}
                   required
-                  {...updateForm.register("label", { required: true })}
+                  {...updateFieldForm.register("label", { required: true })}
                 />
               </Field>
               <Field>
                 <FieldLabel>Type</FieldLabel>
                 <Controller
-                  control={updateForm.control}
+                  control={updateFieldForm.control}
                   name="type"
                   render={({ field }) => (
                     <Select value={field.value} onValueChange={field.onChange}>
@@ -465,19 +583,19 @@ export default function FormBuilderPage() {
               </Field>
               <Field>
                 <FieldLabel htmlFor="edit-placeholder">Placeholder</FieldLabel>
-                <Input id="edit-placeholder" {...updateForm.register("placeholder")} />
+                <Input id="edit-placeholder" {...updateFieldForm.register("placeholder")} />
               </Field>
               <Field>
                 <FieldLabel htmlFor="edit-options">Options</FieldLabel>
-                <Input id="edit-options" {...updateForm.register("options")} />
+                <Input id="edit-options" {...updateFieldForm.register("options")} />
               </Field>
               <Field>
                 <FieldLabel htmlFor="edit-description">Description</FieldLabel>
-                <Textarea id="edit-description" {...updateForm.register("description")} />
+                <Textarea id="edit-description" {...updateFieldForm.register("description")} />
               </Field>
               <Field orientation="horizontal">
                 <Controller
-                  control={updateForm.control}
+                  control={updateFieldForm.control}
                   name="isRequired"
                   render={({ field }) => (
                     <Checkbox
@@ -505,6 +623,47 @@ export default function FormBuilderPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      <Dialog open={isEditingForm} onOpenChange={setIsEditingForm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Form</DialogTitle>
+            <DialogDescription>
+              Update form title and description.
+            </DialogDescription>
+          </DialogHeader>
+          <form className="flex flex-col gap-6" onSubmit={editFormForm.handleSubmit(handleUpdateForm)}>
+            <FieldGroup>
+              <Field>
+                <FieldLabel htmlFor="edit-form-title">Title</FieldLabel>
+                <Input
+                  id="edit-form-title"
+                  maxLength={55}
+                  required
+                  {...editFormForm.register("title", { required: true })}
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="edit-form-description">Description</FieldLabel>
+                <Textarea 
+                  id="edit-form-description" 
+                  maxLength={255}
+                  {...editFormForm.register("description")} 
+                />
+              </Field>
+            </FieldGroup>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsEditingForm(false)} disabled={isUpdatingForm}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isUpdatingForm}>
+                {isUpdatingForm ? "Saving..." : "Save Changes"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
     </div>
   )
 }

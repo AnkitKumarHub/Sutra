@@ -1,12 +1,23 @@
 import { authenticatedProcedure, publicProcedure, router } from "../../trpc";
 import { userService } from "../../services";
-import { getAuthenticationCookie, setAuthenticationCookie } from "../../utils/cookie";
+import {
+  clearAuthenticationCookie,
+  clearRefreshTokenCookie,
+  getRefreshTokenCookie,
+  setAuthenticationCookie,
+  setRefreshTokenCookie,
+} from "../../utils/cookie";
 import { generatePath } from "../../utils/path-generator";
+import { TRPCError } from "@trpc/server";
 import {
   createUserWithEmailAndPasswordInputModel,
   createUserWithEmailAndPasswordOutputModel,
   getLoggedInUserInfoInputModel,
   getLoggedInUserInfoOutputModel,
+  refreshTokenInputModel,
+  refreshTokenOutputModel,
+  signOutInputModel,
+  signOutOutputModel,
   signInUserWithEmailAndPaswordInputModel,
   signInUserWithEmailAndPaswordOutputModel,
 } from "./model";
@@ -38,13 +49,14 @@ export const authRouter = router({
       const { email, password, fullName } = input;
 
       // Here you would typically call a service function to create the user in your database, for example:
-      const { id, token } = await userService.createUserWithEmailAndPassword({
+      const { id, accessToken, refreshToken } = await userService.createUserWithEmailAndPassword({
         email,
         password,
         fullName,
       });
 
-      setAuthenticationCookie(ctx, token); // Set the authentication cookie with the generated token
+      setAuthenticationCookie(ctx, accessToken);
+      setRefreshTokenCookie(ctx, refreshToken);
       return { id };
     }),
 
@@ -58,13 +70,51 @@ export const authRouter = router({
     .mutation(async ({ input, ctx }) => {
       const { email, password } = input;
 
-      const { id, token } = await userService.signInUserWithEmailAndPassword({ email, password });
+      const { id, accessToken, refreshToken } = await userService.signInUserWithEmailAndPassword({
+        email,
+        password,
+      });
 
-      setAuthenticationCookie(ctx, token);
+      setAuthenticationCookie(ctx, accessToken);
+      setRefreshTokenCookie(ctx, refreshToken);
 
       return {
         id,
       };
+    }),
+
+  refreshToken: publicProcedure
+    .meta({
+      openapi: { method: "POST", path: getPath("/refreshToken"), tags: TAGS },
+    })
+    .input(refreshTokenInputModel)
+    .output(refreshTokenOutputModel)
+    .mutation(async ({ ctx }) => {
+      const refreshToken = getRefreshTokenCookie(ctx);
+      if (!refreshToken) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Refresh token not found" });
+      }
+
+      const { id, accessToken, refreshToken: nextRefreshToken } =
+        await userService.refreshAuthTokens(refreshToken);
+
+      setAuthenticationCookie(ctx, accessToken);
+      setRefreshTokenCookie(ctx, nextRefreshToken);
+
+      return { id };
+    }),
+
+  signOut: authenticatedProcedure
+    .meta({
+      openapi: { method: "POST", path: getPath("/signOut"), tags: TAGS, protect: true },
+    })
+    .input(signOutInputModel)
+    .output(signOutOutputModel)
+    .mutation(async ({ ctx }) => {
+      await userService.revokeAllRefreshTokensForUser(ctx.user.id);
+      clearAuthenticationCookie(ctx);
+      clearRefreshTokenCookie(ctx);
+      return { success: true };
     }),
 
   //* Get Logged In User Info

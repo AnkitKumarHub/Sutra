@@ -11,13 +11,16 @@ import {
 	FieldContent,
 	FieldDescription,
 	FieldGroup,
+	FieldContent,
+	FieldDescription,
+	FieldGroup,
 	FieldLabel,
 } from "~/components/ui/field";
 import { Input } from "~/components/ui/input";
 import { Textarea } from "~/components/ui/textarea";
-import { useGetPublicFormById, useSubmitPublicForm } from "~/hooks/api/form";
+import { useGetPublishedFormById, useSubmitPublicForm } from "~/hooks/api/form";
 
-type PublicForm = NonNullable<ReturnType<typeof useGetPublicFormById>["form"]>;
+type PublicForm = NonNullable<ReturnType<typeof useGetPublishedFormById>["form"]>;
 type PublicField = PublicForm["fields"][number];
 
 const getInputType = (type: PublicField["type"]) => {
@@ -39,7 +42,7 @@ export default function PublicFormPage() {
 	const formId = Array.isArray(params.form_id) ? params.form_id[0] : params.form_id;
 	const [fieldValues, setFieldValues] = useState<Record<string, string | boolean | string[]>>({});
 
-	const { form, error, isLoading, isFetching } = useGetPublicFormById(formId ?? "");
+	const { form, error, isLoading, isFetching } = useGetPublishedFormById(formId ?? "");
 	const { submitPublicFormAsync, status: submitStatus } = useSubmitPublicForm();
 	const isSubmitting = submitStatus === "pending";
 

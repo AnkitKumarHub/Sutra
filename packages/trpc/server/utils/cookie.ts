@@ -39,7 +39,8 @@ export function clearCookieFactory(res: Response) {
   };
 }
 
-const AUTHENTICATION_COOKIE_NAME = "aunthentication-token";
+const AUTHENTICATION_COOKIE_NAME = "authentication-token";
+const REFRESH_COOKIE_NAME = "refresh-token";
 
 export function setAuthenticationCookie(ctx: TRPCContext, accessToken: string) {
   ctx.createCookie(AUTHENTICATION_COOKIE_NAME, accessToken, {
@@ -54,4 +55,19 @@ export function getAuthenticationCookie(ctx: TRPCContext) {
 
 export function clearAuthenticationCookie(ctx: TRPCContext) {
   ctx.clearCookie(AUTHENTICATION_COOKIE_NAME);
+}
+
+export function setRefreshTokenCookie(ctx: TRPCContext, refreshToken: string) {
+  ctx.createCookie(REFRESH_COOKIE_NAME, refreshToken, {
+    ...defaultCookieOptions,
+    maxAge: ONE_MONTH,
+  });
+}
+
+export function getRefreshTokenCookie(ctx: TRPCContext) {
+  return ctx.getCookie(REFRESH_COOKIE_NAME);
+}
+
+export function clearRefreshTokenCookie(ctx: TRPCContext) {
+  ctx.clearCookie(REFRESH_COOKIE_NAME);
 }

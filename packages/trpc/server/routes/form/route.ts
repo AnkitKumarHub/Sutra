@@ -8,18 +8,28 @@ import {
   createFormOutputModel,
   deleteFieldInputModel,
   deleteFieldOutputModel,
+  deleteFormInputModel,
+  deleteFormOutputModel,
   getFieldsByFormIdInputModel,
   getFieldsByFormIdOutputModel,
+  getFormByIdInputModel,
+  getFormByIdOutputModel,
   getFormSubmissionsInputModel,
   getFormSubmissionsOutputModel,
-  getPublicFormByIdInputModel,
-  getPublicFormByIdOutputModel,
+  getPublishedFormByIdInputModel,
+  getPublishedFormByIdOutputModel,
   listFormsInputModel,
   listFormsOutputModel,
+  publishFormInputModel,
+  publishFormOutputModel,
   submitPublicFormInputModel,
   submitPublicFormOutputModel,
+  unpublishFormInputModel,
+  unpublishFormOutputModel,
   updateFieldInputModel,
   updateFieldOutputModel,
+  updateFormInputModel,
+  updateFormOutputModel,
 } from "./model";
 
 const TAGS = ["Form"];
@@ -28,7 +38,7 @@ const getPath = generatePath("/form");
 export const formRouter = router({
   createForm: authenticatedProcedure
     .meta({
-      openapi: { method: "POST", path: getPath("/createForm"), tags: TAGS, protect: true }, // protect: true indicates that this route requires authentication
+      openapi: { method: "POST", path: getPath("/createForm"), tags: TAGS, protect: true },
     })
     .input(createFormInputModel)
     .output(createFormOutputModel)
@@ -56,17 +66,70 @@ export const formRouter = router({
 
       return forms;
     }),
+  updateForm: authenticatedProcedure
+    .meta({
+      openapi: { method: "PATCH", path: getPath("/updateForm"), tags: TAGS, protect: true },
+    })
+    .input(updateFormInputModel)
+    .output(updateFormOutputModel)
+    .mutation(async ({ input, ctx }) => {
+      const result = await formService.updateForm({
+        ...input,
+        userId: ctx.user.id,
+      });
+      return result;
+    }),
+  publishForm: authenticatedProcedure
+    .meta({
+      openapi: { method: "POST", path: getPath("/publishForm"), tags: TAGS, protect: true },
+    })
+    .input(publishFormInputModel)
+    .output(publishFormOutputModel)
+    .mutation(async ({ input, ctx }) => {
+      const result = await formService.publishForm({
+        ...input,
+        userId: ctx.user.id,
+      });
+      return result;
+    }),
+  unpublishForm: authenticatedProcedure
+    .meta({
+      openapi: { method: "POST", path: getPath("/unpublishForm"), tags: TAGS, protect: true },
+    })
+    .input(unpublishFormInputModel)
+    .output(unpublishFormOutputModel)
+    .mutation(async ({ input, ctx }) => {
+      const result = await formService.unpublishForm({
+        ...input,
+        userId: ctx.user.id,
+      });
+      return result;
+    }),
+  deleteForm: authenticatedProcedure
+    .meta({
+      openapi: { method: "DELETE", path: getPath("/deleteForm"), tags: TAGS, protect: true },
+    })
+    .input(deleteFormInputModel)
+    .output(deleteFormOutputModel)
+    .mutation(async ({ input, ctx }) => {
+      const result = await formService.deleteForm({
+        ...input,
+        userId: ctx.user.id,
+      });
+      return result;
+    }),
   createField: authenticatedProcedure
     .meta({
       openapi: { method: "POST", path: getPath("/createField"), tags: TAGS, protect: true },
     })
     .input(createFieldInputModel)
     .output(createFieldOutputModel)
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const { formId, label, description, placeholder, isRequired, type, options } = input;
 
       const result = await formFieldService.createField({
         formId,
+        userId: ctx.user.id,
         label,
         description,
         placeholder,
@@ -83,8 +146,11 @@ export const formRouter = router({
     })
     .input(updateFieldInputModel)
     .output(updateFieldOutputModel)
-    .mutation(async ({ input }) => {
-      const result = await formFieldService.updateField(input);
+    .mutation(async ({ input, ctx }) => {
+      const result = await formFieldService.updateField({
+        ...input,
+        userId: ctx.user.id,
+      });
       return result;
     }),
   deleteField: authenticatedProcedure
@@ -93,8 +159,11 @@ export const formRouter = router({
     })
     .input(deleteFieldInputModel)
     .output(deleteFieldOutputModel)
-    .mutation(async ({ input }) => {
-      const result = await formFieldService.deleteField(input);
+    .mutation(async ({ input, ctx }) => {
+      const result = await formFieldService.deleteField({
+        ...input,
+        userId: ctx.user.id,
+      });
       return result;
     }),
   getFieldsByFormId: authenticatedProcedure
@@ -107,14 +176,27 @@ export const formRouter = router({
       const result = await formFieldService.getFieldsByFormId(input);
       return result;
     }),
-  getPublicFormById: publicProcedure
+  getFormById: authenticatedProcedure
+    .meta({
+      openapi: { method: "GET", path: getPath("/getByIdAuth"), tags: TAGS, protect: true },
+    })
+    .input(getFormByIdInputModel)
+    .output(getFormByIdOutputModel)
+    .query(async ({ input, ctx }) => {
+      const result = await formService.getFormByIdAuthenticated({
+        formId: input.formId,
+        userId: ctx.user.id,
+      });
+      return result;
+    }),
+  getPublishedFormById: publicProcedure
     .meta({
       openapi: { method: "GET", path: getPath("/getById"), tags: TAGS },
     })
-    .input(getPublicFormByIdInputModel)
-    .output(getPublicFormByIdOutputModel)
+    .input(getPublishedFormByIdInputModel)
+    .output(getPublishedFormByIdOutputModel)
     .query(async ({ input }) => {
-      const result = await formService.getFormById({ formId: input.formId });
+      const result = await formService.getPublishedFormById({ formId: input.formId });
       return result;
     }),
   submitPublicForm: publicProcedure

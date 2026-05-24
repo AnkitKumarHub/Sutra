@@ -1,17 +1,24 @@
-import { randomBytes, createHmac } from "node:crypto";
+import { createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
 import * as JWT from "jsonwebtoken";
 
-import { db, eq } from "@repo/database";
+import { and, db, eq, gt, isNull } from "@repo/database";
+import { refreshTokensTable } from "@repo/database/models/refresh-token";
 import { usersTable } from "@repo/database/models/user";
 import {
   type CreateUserWithEmailAndPasswordInputType,
-  GenerateUserTokenPayloadType,
-  SignInUserWithEmailAndPasswordInputType,
+  type GenerateRefreshTokenPayloadType,
+  type GenerateUserTokenPayloadType,
+  type SignInUserWithEmailAndPasswordInputType,
   createUserWithEmailAndPasswordInput,
+  generateRefreshTokenPayload,
   generateUserTokenPayload,
   signInUserWithEmailAndPasswordInput,
 } from "./model";
 import { env } from "../env";
+
+const ACCESS_TOKEN_EXPIRES_IN = "1h";
+const REFRESH_TOKEN_EXPIRES_IN = "30d";
+const THIRTY_DAYS_IN_MS = 30 * 24 * 60 * 60 * 1000;
 
 class UserService {
   //utility fn - to find user by email
@@ -23,24 +30,66 @@ class UserService {
     return result[0];
   }
 
-  //utility function for generating Token
-  private async generateUserToken(payload: GenerateUserTokenPayloadType) {
-    const { id } = await generateUserTokenPayload.parseAsync(payload); // validating the payload using zod schema
-    const token = JWT.sign({ id }, env.JWT_SECRET);
-    return { token };
-    // returning the token in an object, so that we can add more properties in the future if needed without changing the return type
-    // design principal - open for extension but closed for modification
+  public async signAccessJwt(payload: GenerateUserTokenPayloadType) {
+    const { id } = await generateUserTokenPayload.parseAsync(payload);
+    return JWT.sign({ id }, env.JWT_SECRET, { expiresIn: ACCESS_TOKEN_EXPIRES_IN });
   }
 
-  //utility function for verifying and decoding the token
-  private async verifyUserToken(token: string): Promise<GenerateUserTokenPayloadType> {
+  public async verifyAccessJwt(token: string): Promise<GenerateUserTokenPayloadType> {
     try {
-      // const decoded = JWT.verify(token, env.JWT_SECRET) as { id: number };
-      const decoded = JWT.verify(token, env.JWT_SECRET) as GenerateUserTokenPayloadType;
-      return decoded;
-    } catch (error) {
-      throw new Error("Invalid token");
+      const decoded = JWT.verify(token, env.JWT_SECRET);
+      return await generateUserTokenPayload.parseAsync(decoded);
+    } catch {
+      throw new Error("Invalid access token");
     }
+  }
+
+  public async signRefreshJwt(payload: GenerateRefreshTokenPayloadType) {
+    const parsed = await generateRefreshTokenPayload.parseAsync(payload);
+    return JWT.sign(parsed, env.JWT_SECRET, { expiresIn: REFRESH_TOKEN_EXPIRES_IN });
+  }
+
+  public async verifyRefreshJwt(token: string): Promise<GenerateRefreshTokenPayloadType> {
+    try {
+      const decoded = JWT.verify(token, env.JWT_SECRET);
+      return await generateRefreshTokenPayload.parseAsync(decoded);
+    } catch {
+      throw new Error("Invalid refresh token");
+    }
+  }
+
+  public hashToken(token: string) {
+    return createHash("sha256").update(token).digest("hex");
+  }
+
+  public generateTokenId() {
+    return randomUUID();
+  }
+
+  private async createAndStoreRefreshToken(userId: string) {
+    const tokenId = this.generateTokenId();
+    const refreshToken = await this.signRefreshJwt({ id: userId, tokenId });
+    const tokenHash = this.hashToken(refreshToken);
+    const expiresAt = new Date(Date.now() + THIRTY_DAYS_IN_MS);
+
+    await db.insert(refreshTokensTable).values({
+      userId,
+      tokenId,
+      tokenHash,
+      expiresAt,
+    });
+
+    return refreshToken;
+  }
+
+  public async issueAuthTokensForUser(userId: string) {
+    const accessToken = await this.signAccessJwt({ id: userId });
+    const refreshToken = await this.createAndStoreRefreshToken(userId);
+
+    return {
+      accessToken,
+      refreshToken,
+    };
   }
 
   //utility function to get user info by ID
@@ -51,6 +100,8 @@ class UserService {
         email: usersTable.email,
         fullName: usersTable.fullName,
         profileImageUrl: usersTable.profileImageUrl,
+        role: usersTable.role,
+        isBlocked: usersTable.isBlocked,
       })
       .from(usersTable)
       .where(eq(usersTable.id, id));
@@ -67,8 +118,7 @@ class UserService {
 
   //*SignUp Service
   public async createUserWithEmailAndPassword(payload: CreateUserWithEmailAndPasswordInputType) {
-    const { fullName, email, password } =
-      await createUserWithEmailAndPasswordInput.parseAsync(payload);
+    const { fullName, email, password } = await createUserWithEmailAndPasswordInput.parseAsync(payload);
 
     //step 1: check if user with the email already exists
     const existingUserWithEmail = await this.getUserByEmail(email);
@@ -98,17 +148,17 @@ class UserService {
     }
 
     const userId = userInsertResult[0].id;
-    const { token } = await this.generateUserToken({ id: userId }); // generating token for the newly created user;
+    const { accessToken, refreshToken } = await this.issueAuthTokensForUser(userId);
 
     return {
       id: userId,
-      token,
+      accessToken,
+      refreshToken,
     };
   }
 
   //* SignIn Service
   public async signInUserWithEmailAndPassword(payload: SignInUserWithEmailAndPasswordInputType) {
-    // Implementation for signing in user with email and password
     const { email, password } = await signInUserWithEmailAndPasswordInput.parseAsync(payload);
 
     //step 1: check if user with the email exists
@@ -117,8 +167,7 @@ class UserService {
       throw new Error(`User with this email: ${email} does not exist`);
     }
 
-    if (!existingUser.password || !existingUser.salt)
-      throw new Error(`Invalid Authentication Method`);
+    if (!existingUser.password || !existingUser.salt) throw new Error(`Invalid Authentication Method`);
 
     //step 2: hash the provided password with the salt from DB and compare with the hash from DB
     const hash = await this.generateHash(existingUser.salt, password);
@@ -127,18 +176,66 @@ class UserService {
       throw new Error(`Invalid credentials!`);
     }
 
-    const { token } = await this.generateUserToken({ id: existingUser.id });
-
-    //?service ka kaam Cookie bnana nahi hai
+    const { accessToken, refreshToken } = await this.issueAuthTokensForUser(existingUser.id);
 
     return {
       id: existingUser.id,
-      token,
+      accessToken,
+      refreshToken,
     };
   }
 
+  public async refreshAuthTokens(refreshToken: string) {
+    const payload = await this.verifyRefreshJwt(refreshToken);
+    const tokenHash = this.hashToken(refreshToken);
+    const now = new Date();
+
+    const refreshTokenRows = await db
+      .select({
+        id: refreshTokensTable.id,
+      })
+      .from(refreshTokensTable)
+      .where(
+        and(
+          eq(refreshTokensTable.userId, payload.id),
+          eq(refreshTokensTable.tokenId, payload.tokenId),
+          eq(refreshTokensTable.tokenHash, tokenHash),
+          isNull(refreshTokensTable.revokedAt),
+          gt(refreshTokensTable.expiresAt, now),
+        ),
+      );
+
+    if (!refreshTokenRows || refreshTokenRows.length === 0) {
+      throw new Error("Refresh token is invalid or expired");
+    }
+
+    await db
+      .update(refreshTokensTable)
+      .set({
+        revokedAt: now,
+      })
+      .where(eq(refreshTokensTable.id, refreshTokenRows[0]!.id));
+
+    const { accessToken, refreshToken: newRefreshToken } = await this.issueAuthTokensForUser(payload.id);
+
+    return {
+      id: payload.id,
+      accessToken,
+      refreshToken: newRefreshToken,
+    };
+  }
+
+  public async revokeAllRefreshTokensForUser(userId: string) {
+    await db
+      .update(refreshTokensTable)
+      .set({
+        revokedAt: new Date(),
+      })
+      .where(and(eq(refreshTokensTable.userId, userId), isNull(refreshTokensTable.revokedAt)));
+  }
+
   public async verifyAndDecodeUserToken(token: string) {
-    const { id } = await this.verifyUserToken(token);
+    const { id } = await this.verifyAccessJwt(token);
     return { id };
   }
 }

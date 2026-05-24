@@ -14,6 +14,13 @@ export const generateUserTokenPayload =z.object({
 
 export type GenerateUserTokenPayloadType = z.infer<typeof generateUserTokenPayload>
 
+export const generateRefreshTokenPayload = z.object({
+  id: z.string().describe("The unique identifier of the user"),
+  tokenId: z.uuid().describe("The unique identifier of the refresh token"),
+});
+
+export type GenerateRefreshTokenPayloadType = z.infer<typeof generateRefreshTokenPayload>;
+
 export const signInUserWithEmailAndPasswordInput = z.object({
   email: z.email().describe("The email address of the user"),
   password: z.string().min(8).describe("The password for the user, must be at least 8 characters"),

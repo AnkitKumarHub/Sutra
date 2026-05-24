@@ -1,5 +1,6 @@
-import { asc, db, eq, max } from "@repo/database";
+import { and, asc, db, eq, isNull, max } from "@repo/database";
 import { formFieldsTable } from "@repo/database/models/form-field";
+import { formTables } from "@repo/database/models/form";
 
 import {
   type CreateFieldInputType,
@@ -36,8 +37,24 @@ class FormFieldService {
   }
 
   public async createField(payload: CreateFieldInputType) {
-    const { formId, label, description, placeholder, isRequired, type, options } =
+    const { formId, userId, label, description, placeholder, isRequired, type, options } =
       await createFieldInput.parseAsync(payload);
+
+    // Verify form exists and user owns it
+    const form = await db
+      .select({ id: formTables.id })
+      .from(formTables)
+      .where(
+        and(
+          eq(formTables.id, formId),
+          eq(formTables.createdBy, userId),
+          isNull(formTables.deletedAt)
+        )
+      );
+
+    if (!form || form.length === 0) {
+      throw new Error(`Form with ID ${formId} does not exist or you do not have access`);
+    }
 
     const labelKey = this.generateLabelKey(label);
     const index = await this.getNextIndex(formId);
@@ -71,7 +88,24 @@ class FormFieldService {
   }
 
   public async updateField(payload: UpdateFieldInputType) {
-    const { fieldId, ...values } = await updateFieldInput.parseAsync(payload);
+    const { fieldId, userId, ...values } = await updateFieldInput.parseAsync(payload);
+
+    // Verify field exists and user owns the parent form
+    const fieldCheck = await db
+      .select({ id: formFieldsTable.id })
+      .from(formFieldsTable)
+      .innerJoin(formTables, eq(formFieldsTable.formId, formTables.id))
+      .where(
+        and(
+          eq(formFieldsTable.id, fieldId),
+          eq(formTables.createdBy, userId),
+          isNull(formTables.deletedAt)
+        )
+      );
+
+    if (!fieldCheck || fieldCheck.length === 0) {
+      throw new Error(`Field with ID ${fieldId} does not exist or you do not have access`);
+    }
 
     const patch: Partial<typeof formFieldsTable.$inferInsert> = {};
 
@@ -101,7 +135,7 @@ class FormFieldService {
       });
 
     if (!fieldUpdateResult || fieldUpdateResult.length === 0 || !fieldUpdateResult[0]?.id) {
-      throw new Error(`Field with ID ${fieldId} does not exist`);
+      throw new Error(`Field with ID ${fieldId} could not be updated`);
     }
 
     return {
@@ -110,7 +144,24 @@ class FormFieldService {
   }
 
   public async deleteField(payload: DeleteFieldInputType) {
-    const { fieldId } = await deleteFieldInput.parseAsync(payload);
+    const { fieldId, userId } = await deleteFieldInput.parseAsync(payload);
+
+    // Verify field exists and user owns the parent form
+    const fieldCheck = await db
+      .select({ id: formFieldsTable.id })
+      .from(formFieldsTable)
+      .innerJoin(formTables, eq(formFieldsTable.formId, formTables.id))
+      .where(
+        and(
+          eq(formFieldsTable.id, fieldId),
+          eq(formTables.createdBy, userId),
+          isNull(formTables.deletedAt)
+        )
+      );
+
+    if (!fieldCheck || fieldCheck.length === 0) {
+      throw new Error(`Field with ID ${fieldId} does not exist or you do not have access`);
+    }
 
     const fieldDeleteResult = await db
       .delete(formFieldsTable)
@@ -120,7 +171,7 @@ class FormFieldService {
       });
 
     if (!fieldDeleteResult || fieldDeleteResult.length === 0 || !fieldDeleteResult[0]?.id) {
-      throw new Error(`Field with ID ${fieldId} does not exist`);
+      throw new Error(`Field with ID ${fieldId} could not be deleted`);
     }
 
     return {
