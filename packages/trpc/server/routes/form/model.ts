@@ -90,3 +90,30 @@ export const getFieldsByFormIdOutputModel = z.array(
     updatedAt: z.date().nullable().describe("Last updated timestamp"),
   }),
 );
+
+export const getPublicFormByIdInputModel = z.object({
+  formId: z.uuid().describe("Unique identifier for the form"),
+});
+
+export const publicFieldOutputModel = z.object({
+  id: z.string().describe("Unique identifier for the field"),
+  label: z.string().describe("Display label of the field"),
+  labelKey: z.string().describe("Stable slug key generated at create time"),
+  description: z.string().nullable().describe("Optional field description"),
+  placeholder: z.string().nullable().describe("Optional field placeholder"),
+  isRequired: z.boolean().describe("Whether the field is required"),
+  index: z.string().describe("Fractional sort index"),
+  type: formFieldTypeModel.describe("Type of the field"),
+  options: z.string().nullable().describe("Optional serialized options"),
+  createdAt: z.date().nullable().describe("Creation timestamp"),
+  updatedAt: z.date().nullable().describe("Last updated timestamp"),
+});
+
+export const getPublicFormByIdOutputModel = z.object({
+  id: z.string().describe("Unique identifier for the form"),
+  title: z.string().describe("The title of the form"),
+  description: z.string().nullable().describe("The optional description of the form"),
+  createdAt: z.date().nullable().describe("Creation timestamp"),
+  updatedAt: z.date().nullable().describe("Last updated timestamp"),
+  fields: z.array(publicFieldOutputModel).describe("Ordered fields for rendering"),
+});
