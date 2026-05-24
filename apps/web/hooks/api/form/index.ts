@@ -159,3 +159,23 @@ export const useGetFields = (formId: string) => {
     status,
   };
 };
+
+export const useGetPublicFormById = (formId: string) => {
+  const {
+    data: form,
+    error,
+    isFetching,
+    isFetched,
+    isLoading,
+    status,
+  } = trpc.form.getPublicFormById.useQuery({ formId }, { enabled: Boolean(formId) });
+
+  return {
+    form,
+    error,
+    isFetching,
+    isFetched,
+    isLoading,
+    status,
+  };
+};
