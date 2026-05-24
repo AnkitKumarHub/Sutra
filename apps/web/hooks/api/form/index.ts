@@ -203,3 +203,26 @@ export const useSubmitPublicForm = () => {
     status,
   };
 };
+
+export const useGetFormSubmissions = (formId: string, enabled = true) => {
+  const {
+    data: submissions,
+    error,
+    isFetching,
+    isFetched,
+    isLoading,
+    status,
+  } = trpc.form.getFormSubmissions.useQuery(
+    { formId },
+    { enabled: enabled && Boolean(formId) },
+  );
+
+  return {
+    submissions,
+    error,
+    isFetching,
+    isFetched,
+    isLoading,
+    status,
+  };
+};

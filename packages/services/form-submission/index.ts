@@ -1,4 +1,4 @@
-import { db, eq } from "@repo/database";
+import { and, db, desc, eq } from "@repo/database";
 import { formFieldsTable } from "@repo/database/models/form-field";
 import { formSubmissionTable, type FormSubmissionValuesRow } from "@repo/database/models/form-submission";
 import { formTables } from "@repo/database/models/form";
@@ -6,7 +6,9 @@ import { z } from "zod";
 
 import {
   type CreateSubmissionInputType,
+  type GetFormSubmissionsInputType,
   createSubmissionInput,
+  getFormSubmissionsInput,
 } from "./model";
 
 const emailSchema = z.string().email();
@@ -107,6 +109,35 @@ class FormSubmissionService {
     return {
       id: submissionInsertResult[0].id,
     };
+  }
+
+  public async getFormSubmissions(payload: GetFormSubmissionsInputType) {
+    const { formId, userId } = await getFormSubmissionsInput.parseAsync(payload);
+
+    const form = await db
+      .select({
+        id: formTables.id,
+      })
+      .from(formTables)
+      .where(and(eq(formTables.id, formId), eq(formTables.createdBy, userId)));
+
+    if (!form || form.length === 0) {
+      throw new Error(`Form with ID ${formId} does not exist`);
+    }
+
+    const submissions = await db
+      .select({
+        id: formSubmissionTable.id,
+        formId: formSubmissionTable.formId,
+        values: formSubmissionTable.values,
+        createdAt: formSubmissionTable.createdAt,
+        updatedAt: formSubmissionTable.updatedAt,
+      })
+      .from(formSubmissionTable)
+      .where(eq(formSubmissionTable.formId, formId))
+      .orderBy(desc(formSubmissionTable.createdAt));
+
+    return submissions;
   }
 }
 

@@ -131,3 +131,25 @@ export const submitPublicFormInputModel = z.object({
 export const submitPublicFormOutputModel = z.object({
   id: z.string().describe("Unique identifier for the submission"),
 });
+
+export const getFormSubmissionsInputModel = z.object({
+  formId: z.uuid().describe("Unique identifier for the form"),
+});
+
+export const formSubmissionValueOutputModel = z.object({
+  fieldId: z.uuid().describe("Unique identifier for the field"),
+  value: z.union([z.string(), z.number(), z.boolean()]).describe("Submitted answer value"),
+});
+
+export const getFormSubmissionsOutputModel = z.array(
+  z.object({
+    id: z.uuid().describe("Unique identifier for the submission"),
+    formId: z.uuid().nullable().describe("Parent form identifier"),
+    values: z
+      .array(formSubmissionValueOutputModel)
+      .nullable()
+      .describe("Submitted values for this form response"),
+    createdAt: z.date().nullable().describe("Creation timestamp"),
+    updatedAt: z.date().nullable().describe("Last updated timestamp"),
+  }),
+);

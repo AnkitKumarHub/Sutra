@@ -11,3 +11,10 @@ export const createSubmissionInput = z.object({
 });
 
 export type CreateSubmissionInputType = z.infer<typeof createSubmissionInput>;
+
+export const getFormSubmissionsInput = z.object({
+  formId: z.uuid().describe("Unique identifier of the form"),
+  userId: z.uuid().describe("Unique identifier of the user"),
+});
+
+export type GetFormSubmissionsInputType = z.infer<typeof getFormSubmissionsInput>;

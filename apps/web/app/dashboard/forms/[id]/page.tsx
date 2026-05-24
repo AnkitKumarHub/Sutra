@@ -213,9 +213,14 @@ export default function FormBuilderPage() {
                 <Badge variant="secondary">Refreshing</Badge>
               )}
             </div>
-            <Button asChild variant="outline">
-              <Link href="/dashboard/forms">Back to forms</Link>
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button asChild variant="outline">
+                <Link href={`/dashboard/forms/${formId}/submissions`}>View submissions</Link>
+              </Button>
+              <Button asChild variant="outline">
+                <Link href="/dashboard/forms">Back to forms</Link>
+              </Button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-3">
