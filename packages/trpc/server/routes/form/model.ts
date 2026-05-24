@@ -117,3 +117,17 @@ export const getPublicFormByIdOutputModel = z.object({
   updatedAt: z.date().nullable().describe("Last updated timestamp"),
   fields: z.array(publicFieldOutputModel).describe("Ordered fields for rendering"),
 });
+
+export const submitPublicFormInputModel = z.object({
+  formId: z.uuid().describe("Unique identifier for the form"),
+  values: z.array(
+    z.object({
+      fieldId: z.uuid().describe("Unique identifier for the field"),
+      value: z.union([z.string(), z.number(), z.boolean()]).describe("Submitted answer"),
+    }),
+  ),
+});
+
+export const submitPublicFormOutputModel = z.object({
+  id: z.string().describe("Unique identifier for the submission"),
+});

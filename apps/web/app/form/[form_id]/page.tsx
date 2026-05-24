@@ -1,6 +1,8 @@
 "use client";
 
+import { type FormEvent, useState } from "react";
 import { useParams } from "next/navigation";
+import { toast } from "sonner";
 
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
@@ -12,7 +14,7 @@ import {
 	FieldLabel,
 } from "~/components/ui/field";
 import { Input } from "~/components/ui/input";
-import { useGetPublicFormById } from "~/hooks/api/form";
+import { useGetPublicFormById, useSubmitPublicForm } from "~/hooks/api/form";
 
 type PublicForm = NonNullable<ReturnType<typeof useGetPublicFormById>["form"]>;
 type PublicField = PublicForm["fields"][number];
@@ -33,8 +35,70 @@ const getInputType = (type: PublicField["type"]) => {
 export default function PublicFormPage() {
 	const params = useParams<{ form_id?: string }>();
 	const formId = Array.isArray(params.form_id) ? params.form_id[0] : params.form_id;
+	const [fieldValues, setFieldValues] = useState<Record<string, string | boolean>>({});
 
 	const { form, error, isLoading, isFetching } = useGetPublicFormById(formId ?? "");
+	const { submitPublicFormAsync, status: submitStatus } = useSubmitPublicForm();
+	const isSubmitting = submitStatus === "pending";
+
+	const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+		event.preventDefault();
+
+		if (!formId || !form) {
+			return;
+		}
+
+		const values: Array<{ fieldId: string; value: string | number | boolean }> = [];
+
+		for (const field of form.fields) {
+			if (field.type === "YES_NO") {
+				values.push({
+					fieldId: field.id,
+					value: Boolean(fieldValues[field.id]),
+				});
+				continue;
+			}
+
+			const rawValue = fieldValues[field.id];
+			if (typeof rawValue !== "string") {
+				continue;
+			}
+
+			const trimmedValue = rawValue.trim();
+			if (trimmedValue.length === 0) {
+				continue;
+			}
+
+			if (field.type === "NUMBER") {
+				const parsedNumber = Number(trimmedValue);
+				if (!Number.isFinite(parsedNumber)) {
+					toast.error(`${field.label} must be a valid number`);
+					return;
+				}
+
+				values.push({
+					fieldId: field.id,
+					value: parsedNumber,
+				});
+				continue;
+			}
+
+			values.push({
+				fieldId: field.id,
+				value: trimmedValue,
+			});
+		}
+
+		try {
+			await submitPublicFormAsync({ formId, values });
+			toast.success("Form submitted successfully");
+			setFieldValues({});
+		} catch (submitError) {
+			const message =
+				submitError instanceof Error ? submitError.message : "Failed to submit form";
+			toast.error(message);
+		}
+	};
 
 	if (isLoading) {
 		return (
@@ -74,20 +138,27 @@ export default function PublicFormPage() {
 
 			<form
 				className="space-y-8"
-				onSubmit={(event) => {
-					event.preventDefault();
-				}}
+				onSubmit={handleSubmit}
 			>
-				<FieldGroup>
-					{form.fields.map((field) => {
-						const inputId = `field-${field.id}`;
-						const isYesNo = field.type === "YES_NO";
-						const control = isYesNo ? (
+					<FieldGroup>
+						{form.fields.map((field) => {
+							const inputId = `field-${field.id}`;
+							const isYesNo = field.type === "YES_NO";
+							const rawFieldValue = fieldValues[field.id];
+							const stringValue = typeof rawFieldValue === "string" ? rawFieldValue : "";
+							const control = isYesNo ? (
 							<div className="flex items-center gap-2">
 								<Checkbox
 									id={inputId}
 									name={field.labelKey}
-									aria-required={field.isRequired}
+									checked={Boolean(fieldValues[field.id])}
+									disabled={isSubmitting}
+									onCheckedChange={(checked) => {
+										setFieldValues((prev) => ({
+											...prev,
+											[field.id]: Boolean(checked),
+										}));
+									}}
 								/>
 								<span className="text-sm text-muted-foreground">Yes</span>
 							</div>
@@ -96,8 +167,15 @@ export default function PublicFormPage() {
 								id={inputId}
 								name={field.labelKey}
 								type={getInputType(field.type)}
+								value={stringValue}
 								placeholder={field.placeholder ?? undefined}
-								required={field.isRequired}
+								disabled={isSubmitting}
+								onChange={(event) => {
+									setFieldValues((prev) => ({
+										...prev,
+										[field.id]: event.target.value,
+									}));
+								}}
 							/>
 						);
 
@@ -121,10 +199,9 @@ export default function PublicFormPage() {
 				</FieldGroup>
 
 				<div className="space-y-2">
-					<Button type="submit">Submit</Button>
-					<p className="text-sm text-muted-foreground">
-						Submissions are not saved yet.
-					</p>
+					<Button type="submit" disabled={isSubmitting}>
+						{isSubmitting ? "Submitting..." : "Submit"}
+					</Button>
 				</div>
 			</form>
 		</div>

@@ -179,3 +179,27 @@ export const useGetPublicFormById = (formId: string) => {
     status,
   };
 };
+
+export const useSubmitPublicForm = () => {
+  const {
+    mutateAsync: submitPublicFormAsync,
+    mutate: submitPublicForm,
+    error,
+    failureCount,
+    isError,
+    isIdle,
+    isSuccess,
+    status,
+  } = trpc.form.submitPublicForm.useMutation();
+
+  return {
+    submitPublicFormAsync,
+    submitPublicForm,
+    error,
+    failureCount,
+    isError,
+    isIdle,
+    isSuccess,
+    status,
+  };
+};
