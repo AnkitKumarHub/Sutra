@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { PlusIcon, UserRoundPen } from "lucide-react"
+import { CopyIcon, MoreHorizontal, PlusIcon, UserRoundPen } from "lucide-react"
 import { useForm } from "react-hook-form"
 import { toast } from "sonner"
 
@@ -16,6 +16,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "~/components/ui/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "~/components/ui/dropdown-menu"
 import {
   Field,
   FieldDescription,
@@ -32,19 +38,24 @@ import {
   TableRow,
 } from "~/components/ui/table"
 import { Textarea } from "~/components/ui/textarea"
-import { useCreateForm, useListForms } from "~/hooks/api/form"
+import { useCreateForm, useListForms, useCloneForm } from "~/hooks/api/form"
 
 type CreateFormValues = {
   title: string
   description?: string
+  slug?: string
 }
 
 export default function FormsPage() {
   const [open, setOpen] = useState(false)
-  const { createFormAsync, status } = useCreateForm()
+  const { createFormAsync, status: createStatus } = useCreateForm()
+  const { cloneFormAsync, status: cloneStatus } = useCloneForm()
   const { forms, error, isLoading, isFetching } = useListForms()
+  
   const form = useForm<CreateFormValues>()
-  const isPending = status === "pending"
+  const titleValue = form.watch("title")
+
+  const isPending = createStatus === "pending" || cloneStatus === "pending"
 
   const handleOpenChange = (nextOpen: boolean) => {
     setOpen(nextOpen)
@@ -54,11 +65,22 @@ export default function FormsPage() {
     }
   }
 
+  const handleCloneForm = async (formId: string) => {
+    try {
+      await cloneFormAsync({ formId })
+      toast.success("Form cloned successfully")
+    } catch (err) {
+      console.error("Error cloning form:", err)
+      toast.error("Failed to clone form")
+    }
+  }
+
   const handleSubmitForm = async (values: CreateFormValues) => {
     try {
       await createFormAsync({
         title: values.title,
         description: values.description || null,
+        slug: values.slug || undefined,
       })
 
       toast.success("Form created")
@@ -80,6 +102,12 @@ export default function FormsPage() {
     }).format(new Date(date))
   }
 
+  const derivedSlug = (titleValue || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "form"
+
   return (
     <div className="flex flex-1 flex-col">
       <div className="@container/main flex flex-1 flex-col gap-2">
@@ -92,7 +120,7 @@ export default function FormsPage() {
               </p>
             </div>
             <Button type="button" onClick={() => setOpen(true)}>
-              <PlusIcon />
+              <PlusIcon className="mr-2 h-4 w-4" />
               Create Form
             </Button>
           </div>
@@ -102,21 +130,22 @@ export default function FormsPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Form</TableHead>
+                  <TableHead className="hidden md:table-cell">Status</TableHead>
                   <TableHead className="hidden md:table-cell">Created</TableHead>
                   <TableHead className="hidden lg:table-cell">Updated</TableHead>
-                  <TableHead className="w-24 text-right">Action</TableHead>
+                  <TableHead className="w-32 text-right">Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
+                    <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
                       Loading forms...
                     </TableCell>
                   </TableRow>
                 ) : error ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="h-24 text-center text-destructive">
+                    <TableCell colSpan={5} className="h-24 text-center text-destructive">
                       Failed to load forms.
                     </TableCell>
                   </TableRow>
@@ -134,12 +163,20 @@ export default function FormsPage() {
                           <p className="max-w-xl truncate text-sm text-muted-foreground">
                             {item.description || "No description"}
                           </p>
+                          <p className="max-w-xl truncate text-xs text-muted-foreground font-mono">
+                            /{item.slug}
+                          </p>
                           {isFetching && (
-                            <Badge variant="secondary" className="mt-1">
+                            <Badge variant="secondary" className="mt-1 w-fit">
                               Refreshing
                             </Badge>
                           )}
                         </div>
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell">
+                        <Badge variant={item.status === "PUBLISHED" ? "default" : "secondary"}>
+                          {item.status}
+                        </Badge>
                       </TableCell>
                       <TableCell className="hidden text-muted-foreground md:table-cell">
                         {formatDate(item.createdAt)}
@@ -148,18 +185,32 @@ export default function FormsPage() {
                         {formatDate(item.updatedAt)}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button asChild size="sm" variant="outline">
-                          <Link href={`/dashboard/forms/${item.id}`}>
-                            {/* Edit */}
-                            <UserRoundPen />
-                          </Link>
-                        </Button>
+                        <div className="flex items-center justify-end gap-2">
+                          <Button asChild size="icon" variant="outline">
+                            <Link href={`/dashboard/forms/${item.id}`}>
+                              <UserRoundPen className="h-4 w-4" />
+                            </Link>
+                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button size="icon" variant="ghost" disabled={cloneStatus === "pending"}>
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => handleCloneForm(item.id)}>
+                                <CopyIcon className="mr-2 h-4 w-4" />
+                                Clone Form
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
+                    <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
                       No forms yet. Create your first form to get started.
                     </TableCell>
                   </TableRow>
@@ -193,6 +244,21 @@ export default function FormsPage() {
                   required
                   {...form.register("title", { required: true })}
                 />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="slug">Custom Slug</FieldLabel>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground shrink-0 select-none">/f/</span>
+                  <Input
+                    id="slug"
+                    placeholder={derivedSlug}
+                    maxLength={255}
+                    {...form.register("slug")}
+                  />
+                </div>
+                <FieldDescription>
+                  Optional. URL friendly identifier. Will be generated from title if left blank.
+                </FieldDescription>
               </Field>
               <Field>
                 <FieldLabel htmlFor="description">Description</FieldLabel>

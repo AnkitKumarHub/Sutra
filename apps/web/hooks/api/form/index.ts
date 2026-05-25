@@ -303,7 +303,7 @@ export const useGetFormById = (formId: string) => {
   };
 };
 
-export const useGetPublishedFormById = (formId: string) => {
+export const useGetPublishedFormBySlug = (slug: string, unlockToken?: string) => {
   const {
     data: form,
     error,
@@ -311,7 +311,10 @@ export const useGetPublishedFormById = (formId: string) => {
     isFetched,
     isLoading,
     status,
-  } = trpc.form.getPublishedFormById.useQuery({ formId }, { enabled: Boolean(formId) });
+  } = trpc.form.getPublishedFormBySlug.useQuery(
+    { slug, unlockToken },
+    { enabled: Boolean(slug) }
+  );
 
   return {
     form,
@@ -368,4 +371,235 @@ export const useGetFormSubmissions = (formId: string, enabled = true) => {
     isLoading,
     status,
   };
+};
+
+export const useCloneForm = () => {
+  const utils = trpc.useUtils();
+
+  const {
+    mutateAsync: cloneFormAsync,
+    mutate: cloneForm,
+    error,
+    failureCount,
+    isError,
+    isIdle,
+    isSuccess,
+    status,
+  } = trpc.form.cloneForm.useMutation({
+    onSuccess: async () => {
+      await utils.form.listForms.invalidate();
+    },
+  });
+
+  return {
+    cloneFormAsync,
+    cloneForm,
+    error,
+    failureCount,
+    isError,
+    isIdle,
+    isSuccess,
+    status,
+  };
+};
+
+export const useExportCsv = () => {
+  const {
+    mutateAsync: exportCsvAsync,
+    mutate: exportCsv,
+    error,
+    failureCount,
+    isError,
+    isIdle,
+    isSuccess,
+    status,
+  } = trpc.form.exportCsv.useMutation();
+
+  return {
+    exportCsvAsync,
+    exportCsv,
+    error,
+    failureCount,
+    isError,
+    isIdle,
+    isSuccess,
+    status,
+  };
+};
+
+// ── PASSWORD PROTECTION ────────────────────────────────────────────────────
+
+export const useSetFormPassword = (formId: string) => {
+  const utils = trpc.useUtils();
+
+  const {
+    mutateAsync: setFormPasswordAsync,
+    mutate: setFormPassword,
+    error,
+    failureCount,
+    isError,
+    isIdle,
+    isPending,
+    isSuccess,
+    status,
+  } = trpc.form.setFormPassword.useMutation({
+    onSuccess: async () => {
+      await utils.form.getFormById.invalidate({ formId });
+    },
+  });
+
+  return {
+    setFormPasswordAsync,
+    setFormPassword,
+    error,
+    failureCount,
+    isError,
+    isIdle,
+    isPending,
+    isSuccess,
+    status,
+  };
+};
+
+export const useUnlockForm = () => {
+  const {
+    mutateAsync: unlockFormAsync,
+    mutate: unlockForm,
+    error,
+    failureCount,
+    isError,
+    isIdle,
+    isPending,
+    isSuccess,
+    status,
+  } = trpc.form.unlockForm.useMutation();
+
+  return {
+    unlockFormAsync,
+    unlockForm,
+    error,
+    failureCount,
+    isError,
+    isIdle,
+    isPending,
+    isSuccess,
+    status,
+  };
+};
+
+// ── PAGES ──────────────────────────────────────────────────────────────────
+
+export const useGetPagesByFormId = (formId: string) => {
+  const {
+    data: pages,
+    error,
+    isFetching,
+    isFetched,
+    isLoading,
+    status,
+  } = trpc.form.getPagesByFormId.useQuery({ formId }, { enabled: Boolean(formId) });
+
+  return {
+    pages,
+    error,
+    isFetching,
+    isFetched,
+    isLoading,
+    status,
+  };
+};
+
+export const useCreatePage = (formId: string) => {
+  const utils = trpc.useUtils();
+
+  const {
+    mutateAsync: createPageAsync,
+    mutate: createPage,
+    error,
+    isPending,
+    isSuccess,
+    status,
+  } = trpc.form.createPage.useMutation({
+    onSuccess: async () => {
+      await utils.form.getPagesByFormId.invalidate({ formId });
+    },
+  });
+
+  return { createPageAsync, createPage, error, isPending, isSuccess, status };
+};
+
+export const useUpdatePage = (formId: string) => {
+  const utils = trpc.useUtils();
+
+  const {
+    mutateAsync: updatePageAsync,
+    mutate: updatePage,
+    error,
+    isPending,
+    isSuccess,
+    status,
+  } = trpc.form.updatePage.useMutation({
+    onSuccess: async () => {
+      await utils.form.getPagesByFormId.invalidate({ formId });
+    },
+  });
+
+  return { updatePageAsync, updatePage, error, isPending, isSuccess, status };
+};
+
+export const useDeletePage = (formId: string) => {
+  const utils = trpc.useUtils();
+
+  const {
+    mutateAsync: deletePageAsync,
+    mutate: deletePage,
+    error,
+    isPending,
+    isSuccess,
+    status,
+  } = trpc.form.deletePage.useMutation({
+    onSuccess: async () => {
+      await utils.form.getPagesByFormId.invalidate({ formId });
+      // Also refresh fields since they may have been unassigned
+      await utils.form.getFieldsByFormId.invalidate({ formId });
+    },
+  });
+
+  return { deletePageAsync, deletePage, error, isPending, isSuccess, status };
+};
+
+export const useReorderPages = (formId: string) => {
+  const utils = trpc.useUtils();
+
+  const {
+    mutateAsync: reorderPagesAsync,
+    mutate: reorderPages,
+    error,
+    isPending,
+    status,
+  } = trpc.form.reorderPages.useMutation({
+    onSuccess: async () => {
+      await utils.form.getPagesByFormId.invalidate({ formId });
+    },
+  });
+
+  return { reorderPagesAsync, reorderPages, error, isPending, status };
+};
+
+export const useAssignFieldToPage = (formId: string) => {
+  const utils = trpc.useUtils();
+
+  const {
+    mutateAsync: assignFieldToPageAsync,
+    mutate: assignFieldToPage,
+    error,
+    isPending,
+    status,
+  } = trpc.form.assignFieldToPage.useMutation({
+    onSuccess: async () => {
+      await utils.form.getFieldsByFormId.invalidate({ formId });
+    },
+  });
+
+  return { assignFieldToPageAsync, assignFieldToPage, error, isPending, status };
 };

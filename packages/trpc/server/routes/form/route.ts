@@ -1,35 +1,55 @@
-import { formFieldService, formService, formSubmissionService } from "../../services";
+import { formFieldService, formPageService, formService, formSubmissionService } from "../../services";
 import { authenticatedProcedure, publicProcedure, router } from "../../trpc";
 import { generatePath } from "../../utils/path-generator";
 import {
+  assignFieldToPageInputModel,
+  assignFieldToPageOutputModel,
   createFieldInputModel,
   createFieldOutputModel,
   createFormInputModel,
   createFormOutputModel,
+  createPageInputModel,
+  createPageOutputModel,
   deleteFieldInputModel,
   deleteFieldOutputModel,
   deleteFormInputModel,
   deleteFormOutputModel,
+  deletePageInputModel,
+  deletePageOutputModel,
+  exportCsvInputModel,
+  exportCsvOutputModel,
   getFieldsByFormIdInputModel,
   getFieldsByFormIdOutputModel,
   getFormByIdInputModel,
   getFormByIdOutputModel,
   getFormSubmissionsInputModel,
   getFormSubmissionsOutputModel,
-  getPublishedFormByIdInputModel,
-  getPublishedFormByIdOutputModel,
+  getPagesByFormIdInputModel,
+  getPagesByFormIdOutputModel,
+  getPublishedFormBySlugInputModel,
+  getPublishedFormBySlugOutputModel,
   listFormsInputModel,
   listFormsOutputModel,
   publishFormInputModel,
   publishFormOutputModel,
+  reorderPagesInputModel,
+  reorderPagesOutputModel,
+  setFormPasswordInputModel,
+  setFormPasswordOutputModel,
   submitPublicFormInputModel,
   submitPublicFormOutputModel,
+  unlockFormInputModel,
+  unlockFormOutputModel,
   unpublishFormInputModel,
   unpublishFormOutputModel,
   updateFieldInputModel,
   updateFieldOutputModel,
   updateFormInputModel,
   updateFormOutputModel,
+  updatePageInputModel,
+  updatePageOutputModel,
+  cloneFormInputModel,
+  cloneFormOutputModel,
 } from "./model";
 
 const TAGS = ["Form"];
@@ -43,15 +63,16 @@ export const formRouter = router({
     .input(createFormInputModel)
     .output(createFormOutputModel)
     .mutation(async ({ input, ctx }) => {
-      const { title, description } = input;
+      const { title, description, slug } = input;
 
-      const { id } = await formService.createForm({
+      const { id, slug: createdSlug } = await formService.createForm({
         title,
         description,
+        slug,
         createdBy: ctx.user.id,
       });
 
-      return { id };
+      return { id, slug: createdSlug };
     }),
   listForms: authenticatedProcedure
     .meta({
@@ -189,14 +210,17 @@ export const formRouter = router({
       });
       return result;
     }),
-  getPublishedFormById: publicProcedure
+  getPublishedFormBySlug: publicProcedure
     .meta({
-      openapi: { method: "GET", path: getPath("/getById"), tags: TAGS },
+      openapi: { method: "GET", path: getPath("/getBySlug"), tags: TAGS },
     })
-    .input(getPublishedFormByIdInputModel)
-    .output(getPublishedFormByIdOutputModel)
+    .input(getPublishedFormBySlugInputModel)
+    .output(getPublishedFormBySlugOutputModel)
     .query(async ({ input }) => {
-      const result = await formService.getPublishedFormById({ formId: input.formId });
+      const result = await formService.getPublishedFormBySlug({
+        slug: input.slug,
+        unlockToken: input.unlockToken,
+      });
       return result;
     }),
   submitPublicForm: publicProcedure
@@ -223,4 +247,151 @@ export const formRouter = router({
 
       return result;
     }),
+  cloneForm: authenticatedProcedure
+    .meta({
+      openapi: { method: "POST", path: getPath("/cloneForm"), tags: TAGS, protect: true },
+    })
+    .input(cloneFormInputModel)
+    .output(cloneFormOutputModel)
+    .mutation(async ({ input, ctx }) => {
+      const result = await formService.cloneForm({
+        formId: input.formId,
+        userId: ctx.user.id,
+      });
+      return result;
+    }),
+  exportCsv: authenticatedProcedure
+    .meta({
+      openapi: { method: "POST", path: getPath("/exportCsv"), tags: TAGS, protect: true },
+    })
+    .input(exportCsvInputModel)
+    .output(exportCsvOutputModel)
+    .mutation(async ({ input, ctx }) => {
+      const result = await formSubmissionService.exportCsv({
+        formId: input.formId,
+        userId: ctx.user.id,
+        fieldIds: input.fieldIds,
+      });
+      return result;
+    }),
+
+  // ── PASSWORD PROTECTION ───────────────────────────────────────────────
+
+  setFormPassword: authenticatedProcedure
+    .meta({
+      openapi: { method: "POST", path: getPath("/setPassword"), tags: TAGS, protect: true },
+    })
+    .input(setFormPasswordInputModel)
+    .output(setFormPasswordOutputModel)
+    .mutation(async ({ input, ctx }) => {
+      const result = await formService.setFormPassword({
+        formId: input.formId,
+        userId: ctx.user.id,
+        password: input.password,
+        unlockDurationMinutes: input.unlockDurationMinutes,
+      });
+      return result;
+    }),
+
+  unlockForm: publicProcedure
+    .meta({
+      openapi: { method: "POST", path: getPath("/unlock"), tags: TAGS },
+    })
+    .input(unlockFormInputModel)
+    .output(unlockFormOutputModel)
+    .mutation(async ({ input }) => {
+      const result = await formService.unlockForm({
+        slug: input.slug,
+        password: input.password,
+      });
+      return result;
+    }),
+
+  // ── PAGES ─────────────────────────────────────────────────────────────
+
+  createPage: authenticatedProcedure
+    .meta({
+      openapi: { method: "POST", path: getPath("/createPage"), tags: TAGS, protect: true },
+    })
+    .input(createPageInputModel)
+    .output(createPageOutputModel)
+    .mutation(async ({ input, ctx }) => {
+      const result = await formPageService.createPage({
+        formId: input.formId,
+        userId: ctx.user.id,
+        title: input.title,
+      });
+      return result;
+    }),
+
+  updatePage: authenticatedProcedure
+    .meta({
+      openapi: { method: "PATCH", path: getPath("/updatePage"), tags: TAGS, protect: true },
+    })
+    .input(updatePageInputModel)
+    .output(updatePageOutputModel)
+    .mutation(async ({ input, ctx }) => {
+      const result = await formPageService.updatePage({
+        pageId: input.pageId,
+        userId: ctx.user.id,
+        title: input.title,
+      });
+      return result;
+    }),
+
+  deletePage: authenticatedProcedure
+    .meta({
+      openapi: { method: "DELETE", path: getPath("/deletePage"), tags: TAGS, protect: true },
+    })
+    .input(deletePageInputModel)
+    .output(deletePageOutputModel)
+    .mutation(async ({ input, ctx }) => {
+      const result = await formPageService.deletePage({
+        pageId: input.pageId,
+        userId: ctx.user.id,
+      });
+      return result;
+    }),
+
+  getPagesByFormId: publicProcedure
+    .meta({
+      openapi: { method: "GET", path: getPath("/getPages"), tags: TAGS },
+    })
+    .input(getPagesByFormIdInputModel)
+    .output(getPagesByFormIdOutputModel)
+    .query(async ({ input }) => {
+      const result = await formPageService.getPagesByFormId({ formId: input.formId });
+      return result;
+    }),
+
+  reorderPages: authenticatedProcedure
+    .meta({
+      openapi: { method: "POST", path: getPath("/reorderPages"), tags: TAGS, protect: true },
+    })
+    .input(reorderPagesInputModel)
+    .output(reorderPagesOutputModel)
+    .mutation(async ({ input, ctx }) => {
+      const result = await formPageService.reorderPages({
+        formId: input.formId,
+        userId: ctx.user.id,
+        pageIds: input.pageIds,
+      });
+      return result;
+    }),
+
+  assignFieldToPage: authenticatedProcedure
+    .meta({
+      openapi: { method: "POST", path: getPath("/assignFieldToPage"), tags: TAGS, protect: true },
+    })
+    .input(assignFieldToPageInputModel)
+    .output(assignFieldToPageOutputModel)
+    .mutation(async ({ input, ctx }) => {
+      const result = await formPageService.assignFieldToPage({
+        fieldId: input.fieldId,
+        userId: ctx.user.id,
+        pageId: input.pageId,
+      });
+      return result;
+    }),
 });
+

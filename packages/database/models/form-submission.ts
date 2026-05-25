@@ -17,6 +17,7 @@ export const formSubmissionTable = pgTable(
 
     values: json("values").$type<FormSubmissionValuesRow>(),
 
+    startedAt: timestamp("started_at"),
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").$onUpdate(() => new Date()),
   },

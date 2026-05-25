@@ -1,4 +1,4 @@
-import { and, db, desc, eq } from "@repo/database";
+import { and, asc, db, desc, eq } from "@repo/database";
 import { formFieldsTable } from "@repo/database/models/form-field";
 import { formSubmissionTable, type FormSubmissionValuesRow } from "@repo/database/models/form-submission";
 import { formTables } from "@repo/database/models/form";
@@ -7,8 +7,10 @@ import { z } from "zod";
 import {
   type CreateSubmissionInputType,
   type GetFormSubmissionsInputType,
+  type ExportCsvInputType,
   createSubmissionInput,
   getFormSubmissionsInput,
+  exportCsvInput,
 } from "./model";
 
 const emailSchema = z.string().email();
@@ -161,6 +163,81 @@ class FormSubmissionService {
       .orderBy(desc(formSubmissionTable.createdAt));
 
     return submissions;
+  }
+
+  public async exportCsv(payload: ExportCsvInputType) {
+    const { formId, userId, fieldIds } = await exportCsvInput.parseAsync(payload);
+
+    // Verify ownership
+    const form = await db
+      .select({ id: formTables.id, title: formTables.title })
+      .from(formTables)
+      .where(and(eq(formTables.id, formId), eq(formTables.createdBy, userId)));
+
+    if (!form || form.length === 0) {
+      throw new Error(`Form with ID ${formId} does not exist or you do not have access`);
+    }
+
+    // Get fields to determine headers
+    let fields = await db
+      .select({
+        id: formFieldsTable.id,
+        label: formFieldsTable.label,
+      })
+      .from(formFieldsTable)
+      .where(eq(formFieldsTable.formId, formId))
+      .orderBy(asc(formFieldsTable.index));
+
+    if (fieldIds && fieldIds.length > 0) {
+      const fieldIdSet = new Set(fieldIds);
+      fields = fields.filter(f => fieldIdSet.has(f.id));
+    }
+
+    // Get submissions
+    const submissions = await db
+      .select({
+        id: formSubmissionTable.id,
+        values: formSubmissionTable.values,
+        createdAt: formSubmissionTable.createdAt,
+      })
+      .from(formSubmissionTable)
+      .where(eq(formSubmissionTable.formId, formId))
+      .orderBy(desc(formSubmissionTable.createdAt));
+
+    // CSV Helper
+    const escapeCsv = (val: unknown): string => {
+      if (val === null || val === undefined) return "";
+      const str = String(val);
+      if (str.includes('"') || str.includes(',') || str.includes('\\n')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    // Build header row
+    const headers = ["Submitted At", ...fields.map(f => f.label)];
+    let csvString = headers.map(escapeCsv).join(",") + "\\n";
+
+    // Build data rows
+    for (const sub of submissions) {
+      const valuesMap = new Map((sub.values ?? []).map(v => [v.fieldId, v.value]));
+      const row = [
+        sub.createdAt ? sub.createdAt.toISOString() : "",
+        ...fields.map(f => {
+          let val = valuesMap.get(f.id);
+          if (Array.isArray(val)) {
+            val = val.join(", ");
+          }
+          return val;
+        }),
+      ];
+      csvString += row.map(escapeCsv).join(",") + "\\n";
+    }
+
+    return {
+      csvContent: csvString,
+      filename: `${form[0]!.title.replace(/[^a-z0-9]/gi, "_").toLowerCase()}_submissions.csv`,
+    };
   }
 }
 

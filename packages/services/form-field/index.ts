@@ -194,6 +194,7 @@ class FormFieldService {
         index: formFieldsTable.index,
         type: formFieldsTable.type,
         options: formFieldsTable.options,
+        pageId: formFieldsTable.pageId,
         createdAt: formFieldsTable.createdAt,
         updatedAt: formFieldsTable.updatedAt,
       })

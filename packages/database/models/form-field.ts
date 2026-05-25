@@ -10,6 +10,7 @@ import {
   unique,
 } from "drizzle-orm/pg-core";
 import { formTables } from "./form";
+import { formPagesTable } from "./form-page";
 
 export const fieldTypeEnum = pgEnum("field_type_enum", [
   "SHORT_TEXT",
@@ -40,6 +41,9 @@ export const formFieldsTable = pgTable(
     options: text("options"),
 
     formId: uuid("form_id").references(() => formTables.id),
+
+    /** Page this field belongs to. null = unassigned (renders in single-page mode). */
+    pageId: uuid("page_id").references(() => formPagesTable.id),
 
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").$onUpdate(() => new Date()),

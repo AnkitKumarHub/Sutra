@@ -20,3 +20,11 @@ export const getFormSubmissionsInput = z.object({
 });
 
 export type GetFormSubmissionsInputType = z.infer<typeof getFormSubmissionsInput>;
+
+export const exportCsvInput = z.object({
+  formId: z.uuid().describe("Unique identifier of the form"),
+  userId: z.uuid().describe("Unique identifier of the user"),
+  fieldIds: z.array(z.uuid()).optional().describe("Optional list of field IDs to include in the export"),
+});
+
+export type ExportCsvInputType = z.infer<typeof exportCsvInput>;

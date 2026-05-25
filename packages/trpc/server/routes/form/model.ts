@@ -14,10 +14,12 @@ export const createFormInputModel = z.object({
     .optional()
     .nullable()
     .describe("The optional description of the form"),
+  slug: z.string().max(255).optional().describe("Optional custom slug for the form"),
 });
 
 export const createFormOutputModel = z.object({
   id: z.string().describe("Unique identifier for the form"),
+  slug: z.string().describe("The unique slug of the form"),
 });
 
 export const listFormsInputModel = z.undefined();
@@ -27,7 +29,10 @@ export const listFormsOutputModel = z.array(
     id: z.string().describe("Unique identifier for the form"),
     title: z.string().describe("The title of the form"),
     description: z.string().nullable().describe("The optional description of the form"),
+    slug: z.string().nullable().describe("The slug of the form"),
     status: formStatusModel.describe("The current status of the form"),
+    isPasswordProtected: z.boolean().optional().describe("Whether the form has a password"),
+    unlockDurationMinutes: z.number().nullable().optional().describe("Unlock token duration"),
     createdAt: z.date().nullable().describe("Creation Timestamp"),
     updatedAt: z.date().nullable().describe("Last Updated Timestamp"),
   }),
@@ -37,6 +42,7 @@ export const updateFormInputModel = z.object({
   formId: z.string().uuid().describe("Unique identifier for the form"),
   title: z.string().min(1).max(55).optional().describe("New title for the form"),
   description: z.string().max(255).optional().nullable().describe("New description for the form"),
+  slug: z.string().max(255).optional().describe("New custom slug for the form"),
 });
 
 export const updateFormOutputModel = z.object({
@@ -135,6 +141,7 @@ export const getFieldsByFormIdOutputModel = z.array(
     index: z.string().describe("Fractional sort index"),
     type: formFieldTypeModel.describe("Type of the field"),
     options: z.string().nullable().describe("Optional serialized options"),
+    pageId: z.string().uuid().nullable().describe("Page this field belongs to"),
     createdAt: z.date().nullable().describe("Creation timestamp"),
     updatedAt: z.date().nullable().describe("Last updated timestamp"),
   }),
@@ -150,6 +157,7 @@ export const publicFieldOutputModel = z.object({
   index: z.string().describe("Fractional sort index"),
   type: formFieldTypeModel.describe("Type of the field"),
   options: z.string().nullable().describe("Optional serialized options"),
+  pageId: z.string().uuid().nullable().describe("Page this field belongs to (null = unassigned)"),
   createdAt: z.date().nullable().describe("Creation timestamp"),
   updatedAt: z.date().nullable().describe("Last updated timestamp"),
 });
@@ -162,24 +170,31 @@ export const getFormByIdOutputModel = z.object({
   id: z.string().describe("Unique identifier for the form"),
   title: z.string().describe("The title of the form"),
   description: z.string().nullable().describe("The optional description of the form"),
+  slug: z.string().nullable().describe("The unique slug of the form"),
   status: formStatusModel.describe("The current status of the form"),
+  isPasswordProtected: z.boolean().describe("Whether the form requires a password"),
+  unlockDurationMinutes: z.number().describe("Unlock token duration in minutes"),
   createdAt: z.date().nullable().describe("Creation timestamp"),
   updatedAt: z.date().nullable().describe("Last updated timestamp"),
   fields: z.array(publicFieldOutputModel).describe("Ordered fields for rendering"),
 });
 
-export const getPublishedFormByIdInputModel = z.object({
-  formId: z.string().uuid().describe("Unique identifier for the form"),
+export const getPublishedFormBySlugInputModel = z.object({
+  slug: z.string().describe("The unique slug of the form"),
+  unlockToken: z.string().optional().describe("JWT unlock token for password-protected forms"),
 });
 
-export const getPublishedFormByIdOutputModel = z.object({
+export const getPublishedFormBySlugOutputModel = z.object({
   id: z.string().describe("Unique identifier for the form"),
   title: z.string().describe("The title of the form"),
   description: z.string().nullable().describe("The optional description of the form"),
+  slug: z.string().nullable().describe("The unique slug of the form"),
   status: formStatusModel.describe("The current status of the form"),
+  isPasswordProtected: z.boolean().describe("Whether the form requires a password to access"),
+  unlockDurationMinutes: z.number().describe("Unlock token validity in minutes"),
   createdAt: z.date().nullable().describe("Creation timestamp"),
   updatedAt: z.date().nullable().describe("Last updated timestamp"),
-  fields: z.array(publicFieldOutputModel).describe("Ordered fields for rendering"),
+  fields: z.array(publicFieldOutputModel).describe("Ordered fields (empty if password-protected and no valid token)"),
 });
 
 export const submitPublicFormInputModel = z.object({
@@ -221,3 +236,111 @@ export const getFormSubmissionsOutputModel = z.array(
     updatedAt: z.date().nullable().describe("Last updated timestamp"),
   }),
 );
+
+export const cloneFormInputModel = z.object({
+  formId: z.string().uuid().describe("Unique identifier for the form to clone"),
+});
+
+export const cloneFormOutputModel = z.object({
+  id: z.string().describe("Unique identifier for the new cloned form"),
+  slug: z.string().describe("The unique slug of the new cloned form"),
+});
+
+export const exportCsvInputModel = z.object({
+  formId: z.string().uuid().describe("Unique identifier for the form"),
+  fieldIds: z.array(z.string().uuid()).optional().describe("Optional list of field IDs to export"),
+});
+
+export const exportCsvOutputModel = z.object({
+  csvContent: z.string().describe("Raw CSV content"),
+  filename: z.string().describe("Recommended filename for the CSV"),
+});
+
+// ── PASSWORD PROTECTION ───────────────────────────────────────────────────────
+
+export const setFormPasswordInputModel = z.object({
+  formId: z.string().uuid().describe("Form ID"),
+  password: z.string().min(4).max(100).nullable().describe("Password to set, or null to clear"),
+  unlockDurationMinutes: z
+    .number()
+    .int()
+    .min(5)
+    .max(1440)
+    .optional()
+    .describe("Unlock token duration in minutes (default: 30)"),
+});
+
+export const setFormPasswordOutputModel = z.object({
+  id: z.string().describe("Form ID"),
+  isPasswordProtected: z.boolean().describe("Whether the form now has a password"),
+  unlockDurationMinutes: z.number().describe("Configured unlock token duration in minutes"),
+});
+
+export const unlockFormInputModel = z.object({
+  slug: z.string().describe("Slug of the password-protected form"),
+  password: z.string().min(1).describe("Password to verify"),
+});
+
+export const unlockFormOutputModel = z.object({
+  unlockToken: z.string().describe("Short-lived JWT unlock token"),
+  expiresInMinutes: z.number().describe("Token expiry in minutes"),
+});
+
+// ── PAGES ─────────────────────────────────────────────────────────────────────
+
+export const createPageInputModel = z.object({
+  formId: z.string().uuid().describe("Parent form ID"),
+  title: z.string().min(1).max(255).describe("Page title"),
+});
+
+export const createPageOutputModel = z.object({
+  id: z.string().describe("New page ID"),
+  order: z.number().describe("Assigned display order"),
+});
+
+export const updatePageInputModel = z.object({
+  pageId: z.string().uuid().describe("Page ID"),
+  title: z.string().min(1).max(255).optional().describe("New title"),
+});
+
+export const updatePageOutputModel = z.object({
+  id: z.string().describe("Updated page ID"),
+});
+
+export const deletePageInputModel = z.object({
+  pageId: z.string().uuid().describe("Page ID to delete"),
+});
+
+export const deletePageOutputModel = z.object({
+  id: z.string().describe("Deleted page ID"),
+});
+
+export const getPagesByFormIdInputModel = z.object({
+  formId: z.string().uuid().describe("Form ID"),
+});
+
+export const getPagesByFormIdOutputModel = z.array(
+  z.object({
+    id: z.string().describe("Page ID"),
+    title: z.string().describe("Page title"),
+    order: z.number().describe("Display order"),
+  })
+);
+
+export const reorderPagesInputModel = z.object({
+  formId: z.string().uuid().describe("Form ID"),
+  pageIds: z.array(z.string().uuid()).min(1).describe("Page IDs in desired order"),
+});
+
+export const reorderPagesOutputModel = z.object({
+  success: z.boolean(),
+});
+
+export const assignFieldToPageInputModel = z.object({
+  fieldId: z.string().uuid().describe("Field ID"),
+  pageId: z.string().uuid().nullable().describe("Page ID, or null to unassign"),
+});
+
+export const assignFieldToPageOutputModel = z.object({
+  id: z.string().describe("Updated field ID"),
+});
