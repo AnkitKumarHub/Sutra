@@ -603,3 +603,36 @@ export const useAssignFieldToPage = (formId: string) => {
 
   return { assignFieldToPageAsync, assignFieldToPage, error, isPending, status };
 };
+
+// ── createFromTemplate ────────────────────────────────────────────────────────
+
+export const useCreateFromTemplate = () => {
+  const utils = trpc.useUtils();
+
+  const {
+    mutateAsync: createFromTemplateAsync,
+    mutate: createFromTemplate,
+    error,
+    isPending,
+    isSuccess,
+    status,
+  } = trpc.form.createFromTemplate.useMutation({
+    onSuccess: async () => {
+      await utils.form.listForms.invalidate();
+    },
+  });
+
+  return { createFromTemplateAsync, createFromTemplate, error, isPending, isSuccess, status };
+};
+
+// ── useListTemplates ──────────────────────────────────────────────────────────
+
+export const useListTemplates = () => {
+  const {
+    data: templates,
+    isLoading,
+    error,
+  } = trpc.explore.listTemplates.useQuery(undefined);
+
+  return { templates: templates ?? [], isLoading, error };
+};

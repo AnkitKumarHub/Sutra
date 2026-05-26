@@ -4,3 +4,4 @@ export * from "./models/form-field";
 export * from "./models/form-page";
 export * from "./models/form-submission";
 export * from "./models/refresh-token";
+export * from "./models/template";

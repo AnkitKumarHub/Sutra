@@ -2,7 +2,10 @@ import { and, asc, db, desc, eq } from "@repo/database";
 import { formFieldsTable } from "@repo/database/models/form-field";
 import { formSubmissionTable, type FormSubmissionValuesRow } from "@repo/database/models/form-submission";
 import { formTables } from "@repo/database/models/form";
+import { usersTable } from "@repo/database/models/user";
+import { logger } from "@repo/logger";
 import { z } from "zod";
+import NotificationService from "../notification";
 
 import {
   type CreateSubmissionInputType,
@@ -16,12 +19,16 @@ import {
 const emailSchema = z.string().email();
 
 class FormSubmissionService {
+  private readonly notificationService = new NotificationService();
+
   public async createSubmission(payload: CreateSubmissionInputType) {
     const { formId, values, startedAt } = await createSubmissionInput.parseAsync(payload);
 
     const form = await db
       .select({
         id: formTables.id,
+        title: formTables.title,
+        createdBy: formTables.createdBy,
       })
       .from(formTables)
       .where(eq(formTables.id, formId));
@@ -41,6 +48,7 @@ class FormSubmissionService {
 
     const fieldById = new Map(fields.map((field) => [field.id, field]));
     const submittedFieldIds = new Set<string>();
+    let respondentEmail: string | undefined;
 
     for (const submissionValue of values) {
       if (submittedFieldIds.has(submissionValue.fieldId)) {
@@ -68,6 +76,7 @@ class FormSubmissionService {
         if (typeof value !== "string" || !emailSchema.safeParse(value).success) {
           throw new Error(`Field ${submissionValue.fieldId} must be a valid email`);
         }
+        respondentEmail ??= value;
       } else if (field.type === "SHORT_TEXT" || field.type === "LONG_TEXT") {
         if (typeof value !== "string") {
           throw new Error(`Field ${submissionValue.fieldId} must be text`);
@@ -131,6 +140,39 @@ class FormSubmissionService {
 
     if (!submissionInsertResult || submissionInsertResult.length === 0 || !submissionInsertResult[0]?.id) {
       throw new Error("Something went wrong while creating form submission");
+    }
+
+    const creatorId = form[0]?.createdBy;
+    if (creatorId) {
+      const [creator] = await db
+        .select({
+          email: usersTable.email,
+          fullName: usersTable.fullName,
+        })
+        .from(usersTable)
+        .where(eq(usersTable.id, creatorId))
+        .limit(1);
+
+      if (creator?.email) {
+        void this.notificationService
+          .sendSubmissionEmails({
+            formId,
+            formTitle: form[0]?.title ?? "Untitled Form",
+            submissionId: submissionInsertResult[0].id,
+            submittedAt: submissionInsertResult[0].createdAt?.toISOString() ?? new Date().toISOString(),
+            creatorEmail: creator.email,
+            creatorName: creator.fullName ?? "Creator",
+            respondentEmail,
+            sendRespondentConfirmation: Boolean(respondentEmail),
+          })
+          .catch((error: unknown) => {
+            logger.error("Submission email notification failed", {
+              formId,
+              submissionId: submissionInsertResult[0]?.id,
+              error: error instanceof Error ? error.message : "Unknown error",
+            });
+          });
+      }
     }
 
     return {

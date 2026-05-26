@@ -10,7 +10,6 @@ import {
   IconTrendingUp,
   IconTrendingDown,
   IconPlus,
-  IconLayoutGrid,
   IconEdit,
 } from "@tabler/icons-react"
 
@@ -18,6 +17,7 @@ import { useUser } from "~/hooks/api/auth"
 import { useAnalyticsOverview } from "~/hooks/api/analytics"
 import { Skeleton } from "~/components/ui/skeleton"
 import { Sparkline } from "~/app/dashboard/analytics/components/sparkline"
+import { TemplateSection } from "~/app/dashboard/components/template-section"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -90,43 +90,6 @@ function KPICard({ label, value, icon: Icon, trend, subtitle, index, isLoading }
       {subtitle && (
         <p className="text-xs text-muted-foreground">{subtitle}</p>
       )}
-    </motion.div>
-  )
-}
-
-// ─── Quick Action Card ─────────────────────────────────────────────────────────
-
-function QuickActionCard({
-  href,
-  icon: Icon,
-  label,
-  description,
-  index,
-}: {
-  href: string
-  icon: React.ElementType
-  label: string
-  description: string
-  index: number
-}) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, delay: 0.28 + index * 0.04, ease: "easeOut" }}
-    >
-      <Link
-        href={href}
-        className="flex items-center gap-3 rounded-xl border border-border/60 bg-card p-4 hover:bg-muted/40 hover:border-border transition-colors group"
-      >
-        <div className="flex size-9 items-center justify-center rounded-lg bg-primary/8 text-primary group-hover:bg-primary/12 transition-colors shrink-0">
-          <Icon className="size-4" />
-        </div>
-        <div className="min-w-0">
-          <p className="text-sm font-medium leading-snug">{label}</p>
-          <p className="text-xs text-muted-foreground truncate">{description}</p>
-        </div>
-      </Link>
     </motion.div>
   )
 }
@@ -218,41 +181,6 @@ export default function DashboardPage() {
             index={3}
             isLoading={isLoading}
           />
-        </div>
-
-        {/* ── Quick Actions ──────────────────────────────────────── */}
-        <div>
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.3, delay: 0.24 }}
-            className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3"
-          >
-            Quick Actions
-          </motion.p>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <QuickActionCard
-              href="/dashboard/forms"
-              icon={IconPlus}
-              label="Create Form"
-              description="Start collecting responses"
-              index={0}
-            />
-            <QuickActionCard
-              href="/dashboard/analytics"
-              icon={IconChartBar}
-              label="View Analytics"
-              description="Insights across all forms"
-              index={1}
-            />
-            <QuickActionCard
-              href="/dashboard/forms"
-              icon={IconLayoutGrid}
-              label="All Forms"
-              description="Manage your form library"
-              index={2}
-            />
-          </div>
         </div>
 
         {/* ── Recent Forms ───────────────────────────────────────── */}
@@ -352,6 +280,10 @@ export default function DashboardPage() {
             </div>
           )}
         </div>
+
+        {/* ── Featured Templates ─────────────────────────────────── */}
+        <TemplateSection />
+
       </div>
     </div>
   )

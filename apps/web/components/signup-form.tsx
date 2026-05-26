@@ -26,7 +26,7 @@ export function SignupForm({ className, ...props }: React.ComponentProps<"div">)
     console.log("Signup form values", values);
     try {
       const { id } = await createUserWithEmailAndPassowrdAsync({email: values.email, password: values.password, fullName: values.fullName});
-      console.log("User created with ID:", id);
+      // console.log("User created with ID:", id);
       router.replace("/dashboard");
     } catch (error) {
       console.error("Error creating user:", error);
@@ -84,7 +84,7 @@ export function SignupForm({ className, ...props }: React.ComponentProps<"div">)
               <Field>
                 <Button type="submit">Create Account</Button>
                 <FieldDescription className="text-center">
-                  Already have an account? <a href="#">Sign in</a>
+                  Already have an account? <a href="/login">Sign in</a>
                 </FieldDescription>
               </Field>
             </FieldGroup>

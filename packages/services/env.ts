@@ -5,6 +5,9 @@ const envSchema = z.object({
   GOOGLE_OAUTH_CLIENT_ID: z.string().optional().default(""),
   GOOGLE_OAUTH_CLIENT_SECRET: z.string().optional().default(""),
   GOOGLE_OAUTH_REDIRECT_URI: z.string().optional().default(""),
+  RESEND_API_KEY: z.string().optional().default(""),
+  EMAIL_FROM: z.string().email().describe("Platform sender email used for outbound emails"),
+  EMAIL_REPLY_TO: z.string().email().optional(),
 });
 
 function createEnv(env: NodeJS.ProcessEnv) {

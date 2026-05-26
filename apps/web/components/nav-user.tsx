@@ -1,9 +1,7 @@
 "use client"
 
 import {
-  IconDotsVertical,
   IconLogout,
-  IconUserCircle,
 } from "@tabler/icons-react"
 
 import {
@@ -11,21 +9,10 @@ import {
   AvatarFallback,
   AvatarImage,
 } from "~/components/ui/avatar"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "~/components/ui/dropdown-menu"
 import { Skeleton } from "~/components/ui/skeleton"
 import {
   SidebarMenu,
-  SidebarMenuButton,
   SidebarMenuItem,
-  useSidebar,
 } from "~/components/ui/sidebar"
 
 function getInitials(name: string): string {
@@ -49,8 +36,6 @@ export function NavUser({
   }
   isLoading?: boolean
 }) {
-  const { isMobile } = useSidebar()
-
   if (isLoading) {
     return (
       <SidebarMenu>
@@ -67,73 +52,40 @@ export function NavUser({
     )
   }
 
+  const handleLogout = () => {
+    document.cookie = "authentication-token=; Max-Age=0; path=/"
+    window.location.href = "/login"
+  }
+
   return (
     <SidebarMenu>
       <SidebarMenuItem>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <SidebarMenuButton
-              size="lg"
-              className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
-            >
-              <Avatar className="h-8 w-8 rounded-lg shrink-0">
-                <AvatarImage src={user.avatar} alt={user.name} />
-                <AvatarFallback className="rounded-lg text-xs">
-                  {getInitials(user.name) || "?"}
-                </AvatarFallback>
-              </Avatar>
-              <div className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
-                <span className="truncate font-medium">{user.name}</span>
-                <span className="truncate text-xs text-muted-foreground">
-                  {user.email}
-                </span>
-              </div>
-              <IconDotsVertical className="ml-auto size-4 group-data-[collapsible=icon]:hidden" />
-            </SidebarMenuButton>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg"
-            side={isMobile ? "bottom" : "right"}
-            align="end"
-            sideOffset={4}
+        <div className="flex items-center gap-2 px-2 py-2">
+          {/* Avatar */}
+          <Avatar className="size-8 rounded-lg shrink-0">
+            <AvatarImage src={user.avatar} alt={user.name} />
+            <AvatarFallback className="rounded-lg text-xs">
+              {getInitials(user.name) || "?"}
+            </AvatarFallback>
+          </Avatar>
+
+          {/* Name + Email — hidden in icon mode */}
+          <div className="grid flex-1 text-left text-sm leading-tight min-w-0 group-data-[collapsible=icon]:hidden">
+            <span className="truncate font-medium text-sm">{user.name}</span>
+            <span className="truncate text-xs text-muted-foreground">
+              {user.email}
+            </span>
+          </div>
+
+          {/* Logout button — inline, muted, dotted border */}
+          <button
+            onClick={handleLogout}
+            className="flex items-center justify-center size-7 rounded-md border border-dashed border-muted-foreground/30 text-muted-foreground hover:text-destructive hover:border-destructive/50 hover:bg-destructive/5 transition-all shrink-0 group-data-[collapsible=icon]:hidden"
+            title="Log out"
           >
-            <DropdownMenuLabel className="p-0 font-normal">
-              <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
-                <Avatar className="h-8 w-8 rounded-lg">
-                  <AvatarImage src={user.avatar} alt={user.name} />
-                  <AvatarFallback className="rounded-lg text-xs">
-                    {getInitials(user.name) || "?"}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-medium">{user.name}</span>
-                  <span className="truncate text-xs text-muted-foreground">
-                    {user.email}
-                  </span>
-                </div>
-              </div>
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              <DropdownMenuItem>
-                <IconUserCircle className="size-4" />
-                Account
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className="text-destructive focus:text-destructive"
-              onClick={() => {
-                // Logout handled via trpc - redirect to login
-                document.cookie = "authentication-token=; Max-Age=0; path=/"
-                window.location.href = "/login"
-              }}
-            >
-              <IconLogout className="size-4" />
-              Log out
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+            <IconLogout className="size-3.5" />
+          </button>
+        </div>
       </SidebarMenuItem>
     </SidebarMenu>
   )

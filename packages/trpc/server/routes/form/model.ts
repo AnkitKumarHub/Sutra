@@ -346,3 +346,14 @@ export const assignFieldToPageInputModel = z.object({
 export const assignFieldToPageOutputModel = z.object({
   id: z.string().describe("Updated field ID"),
 });
+
+// ── createFromTemplate ────────────────────────────────────────────────────────
+
+export const createFromTemplateInputModel = z.object({
+  templateId: z.string().uuid().describe("ID of the template to clone"),
+});
+
+export const createFromTemplateOutputModel = z.object({
+  id:   z.string().describe("Newly created form ID"),
+  slug: z.string().describe("Newly created form slug"),
+});

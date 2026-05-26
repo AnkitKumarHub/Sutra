@@ -6,12 +6,10 @@ import {
   IconDashboard,
   IconClipboardText,
   IconChartBar,
-  IconSettings,
   IconInnerShadowTop,
 } from "@tabler/icons-react"
 
 import { NavMain } from "~/components/nav-main"
-import { NavSecondary } from "~/components/nav-secondary"
 import { NavUser } from "~/components/nav-user"
 import { useUser } from "~/hooks/api/auth"
 import {
@@ -43,14 +41,6 @@ const navMain = [
   },
 ]
 
-const navSecondary = [
-  {
-    title: "Settings",
-    url: "#",
-    icon: IconSettings,
-  },
-]
-
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { user, isLoading } = useUser()
 
@@ -61,7 +51,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <SidebarMenu>
           <SidebarMenuItem>
             <div className="flex items-center justify-between px-1 py-1">
-              {/* Brand */}
               <Link
                 href="/dashboard"
                 className="flex items-center gap-2 min-w-0"
@@ -71,7 +60,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   Sutra
                 </span>
               </Link>
-              {/* Same PanelLeftIcon trigger — hidden in icon-collapsed mode */}
               <SidebarTrigger className="group-data-[collapsible=icon]:hidden -mr-1 shrink-0" />
             </div>
           </SidebarMenuItem>
@@ -81,7 +69,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       {/* ── Nav ──────────────────────────────────────────────── */}
       <SidebarContent>
         <NavMain items={navMain} />
-        <NavSecondary items={navSecondary} className="mt-auto" />
       </SidebarContent>
 
       {/* ── Footer: Real user ────────────────────────────────── */}

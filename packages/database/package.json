@@ -4,6 +4,7 @@
   "scripts": {
     "db:migrate": "dotenv -- drizzle-kit migrate",
     "db:generate": "dotenv -- drizzle-kit generate",
+    "db:seed-templates": "dotenv -- tsx seed-templates.ts",
     "dev": "dotenv -- drizzle-kit studio"
   },
   "devDependencies": {

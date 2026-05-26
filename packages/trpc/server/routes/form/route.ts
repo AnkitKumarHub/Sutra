@@ -1,4 +1,4 @@
-import { formFieldService, formPageService, formService, formSubmissionService } from "../../services";
+import { formFieldService, formPageService, formService, formSubmissionService, templateService } from "../../services";
 import { authenticatedProcedure, publicProcedure, router } from "../../trpc";
 import { generatePath } from "../../utils/path-generator";
 import { submissionBus } from "../../utils/submission-bus";
@@ -51,6 +51,8 @@ import {
   updatePageOutputModel,
   cloneFormInputModel,
   cloneFormOutputModel,
+  createFromTemplateInputModel,
+  createFromTemplateOutputModel,
 } from "./model";
 
 const TAGS = ["Form"];
@@ -402,6 +404,56 @@ export const formRouter = router({
         pageId: input.pageId,
       });
       return result;
+    }),
+
+  createFromTemplate: authenticatedProcedure
+    .meta({
+      openapi: { method: "POST", path: getPath("/createFromTemplate"), tags: TAGS, protect: true },
+    })
+    .input(createFromTemplateInputModel)
+    .output(createFromTemplateOutputModel)
+    .mutation(async ({ input, ctx }) => {
+      const template = await templateService.getTemplateById(input.templateId);
+      if (!template) {
+        throw new Error("Template not found");
+      }
+
+      // Create the form with the template title
+      const { id: formId, slug } = await formService.createForm({
+        title: template.title,
+        description: template.description ?? undefined,
+        createdBy: ctx.user.id,
+      });
+
+      // Bulk-insert fields from template definition
+      const fields = (template.fields as Array<{
+        label: string;
+        labelKey: string;
+        type: "SHORT_TEXT" | "LONG_TEXT" | "EMAIL" | "NUMBER" | "SINGLE_SELECT" | "MULTI_SELECT" | "CHECKBOX" | "RATING" | "DATE";
+        isRequired: boolean;
+        placeholder?: string | null;
+        description?: string | null;
+        options?: string | null;
+      }>);
+
+      for (let i = 0; i < fields.length; i++) {
+        const f = fields[i]!;
+        await formFieldService.createField({
+          formId,
+          userId: ctx.user.id,
+          label: f.label,
+          type: f.type,
+          isRequired: f.isRequired,
+          placeholder: f.placeholder ?? undefined,
+          description: f.description ?? undefined,
+          options: f.options ?? undefined,
+        });
+      }
+
+      // Fire-and-forget usage increment
+      templateService.incrementUsageCount(input.templateId).catch(() => {});
+
+      return { id: formId, slug };
     }),
 });
 
