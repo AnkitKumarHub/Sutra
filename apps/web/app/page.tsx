@@ -22,7 +22,7 @@ export default function Home() {
       <div>
         {/* <h1 className="text-3xl">Ankit</h1> */}
         {/* <h2>Server Status: {status}</h2> */}
-        <div>{JSON.stringify({ user }, null, 2)}</div>
+        {/* <div>{JSON.stringify({ user }, null, 2)}</div> */}
       </div>
     </main>
   );
