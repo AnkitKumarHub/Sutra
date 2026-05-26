@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { CopyIcon, MoreHorizontal, PlusIcon, UserRoundPen } from "lucide-react"
+import { BarChart2, CopyIcon, MoreHorizontal, PlusIcon, UserRoundPen } from "lucide-react"
 import { useForm } from "react-hook-form"
 import { toast } from "sonner"
 
@@ -198,6 +198,12 @@ export default function FormsPage() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
+                              <DropdownMenuItem asChild>
+                                <Link href={`/dashboard/analytics/${item.id}`}>
+                                  <BarChart2 className="mr-2 h-4 w-4" />
+                                  Analytics
+                                </Link>
+                              </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => handleCloneForm(item.id)}>
                                 <CopyIcon className="mr-2 h-4 w-4" />
                                 Clone Form

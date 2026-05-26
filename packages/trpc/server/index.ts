@@ -3,28 +3,14 @@ import z from "zod";
 
 import { healthRouter } from "./routes/health/route";
 import { authRouter } from "./routes/auth/route";
-import { formRouter } from "./routes/form/route"; 
+import { formRouter } from "./routes/form/route";
+import { analyticsRouter } from "./routes/analytics/route";
 
 export const serverRouter = router({
   health: healthRouter,
-  // auth: authRouter,
-  // chaicode: publicProcedure
-  //   .meta({
-  //     openapi: {
-  //       method: "GET",
-  //       path: "/chaicode",
-  //     },
-  //   })
-  //   .input(z.object({ name: z.string(), email: z.email() }))
-  //   .output(z.object({ message: z.string() }))
-  //   .query(async ({ input }) => {
-  //     return {
-  //       message: `Hello ${input.name} ${input.email}, welcome to Chaicode!`,
-  //     };
-  //   }),
-
   auth: authRouter,
-  form: formRouter
+  form: formRouter,
+  analytics: analyticsRouter,
 });
 
 export { createContext } from "./context";

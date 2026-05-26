@@ -10,6 +10,8 @@ export const createSubmissionValueInput = z.object({
 export const createSubmissionInput = z.object({
   formId: z.uuid().describe("Unique identifier of the form"),
   values: z.array(createSubmissionValueInput).min(1, "At least one field value is required").describe("Submitted answers"),
+  /** ISO timestamp of when the respondent first opened the form */
+  startedAt: z.string().datetime().optional().describe("When the respondent opened the form"),
 });
 
 export type CreateSubmissionInputType = z.infer<typeof createSubmissionInput>;

@@ -20,6 +20,7 @@ export function NavMain({
     title: string
     url: string
     icon?: Icon
+    exact?: boolean
   }[]
 }) {
   const pathname = usePathname()
@@ -51,7 +52,7 @@ export function NavMain({
             <SidebarMenuItem key={item.title}>
               <SidebarMenuButton
                 asChild
-                isActive={pathname === item.url}
+              isActive={item.exact ? pathname === item.url : pathname === item.url || pathname.startsWith(item.url + "/")}
                 tooltip={item.title}
               >
                 <Link href={item.url}>

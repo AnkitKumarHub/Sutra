@@ -1,6 +1,7 @@
 import { formFieldService, formPageService, formService, formSubmissionService } from "../../services";
 import { authenticatedProcedure, publicProcedure, router } from "../../trpc";
 import { generatePath } from "../../utils/path-generator";
+import { submissionBus } from "../../utils/submission-bus";
 import {
   assignFieldToPageInputModel,
   assignFieldToPageOutputModel,
@@ -231,7 +232,16 @@ export const formRouter = router({
     .output(submitPublicFormOutputModel)
     .mutation(async ({ input }) => {
       const result = await formSubmissionService.createSubmission(input);
-      return result;
+
+      // Fire-and-forget: broadcast real-time delta to any connected analytics clients
+      submissionBus.emit("submission", {
+        formId: input.formId,
+        submissionId: result.id,
+        submittedAt: result.submittedAt,
+        values: result.values,
+      });
+
+      return { id: result.id };
     }),
   getFormSubmissions: authenticatedProcedure
     .meta({

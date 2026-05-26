@@ -17,7 +17,7 @@ const emailSchema = z.string().email();
 
 class FormSubmissionService {
   public async createSubmission(payload: CreateSubmissionInputType) {
-    const { formId, values } = await createSubmissionInput.parseAsync(payload);
+    const { formId, values, startedAt } = await createSubmissionInput.parseAsync(payload);
 
     const form = await db
       .select({
@@ -122,9 +122,11 @@ class FormSubmissionService {
       .values({
         formId,
         values: normalizedValues,
+        startedAt: startedAt ? new Date(startedAt) : undefined,
       })
       .returning({
         id: formSubmissionTable.id,
+        createdAt: formSubmissionTable.createdAt,
       });
 
     if (!submissionInsertResult || submissionInsertResult.length === 0 || !submissionInsertResult[0]?.id) {
@@ -133,6 +135,8 @@ class FormSubmissionService {
 
     return {
       id: submissionInsertResult[0].id,
+      submittedAt: submissionInsertResult[0].createdAt?.toISOString() ?? new Date().toISOString(),
+      values: normalizedValues,
     };
   }
 

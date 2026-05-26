@@ -207,6 +207,8 @@ export const submitPublicFormInputModel = z.object({
         .describe("Submitted answer"),
     }),
   ),
+  /** ISO timestamp of when the respondent first opened the form — used for avg completion time */
+  startedAt: z.string().datetime().optional().describe("When the respondent opened the form"),
 });
 
 export const submitPublicFormOutputModel = z.object({

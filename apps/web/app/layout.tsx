@@ -13,9 +13,10 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "varta",
-  description: "Form",
+  title: "Sutra",
+  description: "Build, share, and analyze forms.",
 };
+
 
 export default function RootLayout({
   children,

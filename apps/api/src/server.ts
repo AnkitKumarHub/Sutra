@@ -13,7 +13,7 @@ import { env } from "./env";
 
 export const app = express();
 const openApiDocument = generateOpenApiDocument(serverRouter, {
-  title: "Varta OpenAPI",
+  title: "Sutra API",
   version: "1.0.0",
   baseUrl: env.BASE_URL.concat("/api"),
 });
@@ -21,8 +21,7 @@ const openApiDocument = generateOpenApiDocument(serverRouter, {
 if (env.NODE_ENV !== "prod") {
   app.use(
     cors({
-      // origin: "*",
-      origin: "http://localhost:3000",
+      origin: env.WEB_ORIGIN ?? "http://localhost:3000",
       credentials: true
     }),
   );
