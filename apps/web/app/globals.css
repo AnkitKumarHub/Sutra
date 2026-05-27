@@ -42,6 +42,14 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+
+  /* Sutra Landing Page Tokens */
+  --color-sutra-cream: #fdf8f8;
+  --color-sutra-teal: #112F2F;
+  --color-sutra-mustard: #E9C46A;
+  --color-sutra-lavender: #D6C6E1;
+  --font-display: var(--font-display);
+  --font-body: var(--font-body);
 }
 
 :root {
