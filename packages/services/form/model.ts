@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+export const formVisibilityModel = z.enum(["PUBLIC", "UNLISTED"]);
+
 export const createFormInput = z.object({
   title: z
     .string()
@@ -51,6 +53,33 @@ export const updateFormInput = z.object({
 
 export type UpdateFormInputType = z.infer<typeof updateFormInput>;
 
+// Set form visibility
+export const setFormVisibilityInput = z.object({
+  formId: z.uuid().describe("The unique identifier of the form"),
+  userId: z.uuid().describe("The unique identifier of the requesting user (must be the owner)"),
+  visibility: formVisibilityModel.describe("Form discoverability mode"),
+});
+
+export type SetFormVisibilityInputType = z.infer<typeof setFormVisibilityInput>;
+
+export const updateFormLimitsInput = z.object({
+  formId: z.uuid(),
+  userId: z.uuid(),
+  expiresAt: z.string().datetime().nullable().optional(),
+  maxResponses: z.number().int().min(1).nullable().optional(),
+});
+
+export type UpdateFormLimitsInputType = z.infer<typeof updateFormLimitsInput>;
+
+export const updateFormNotificationSettingsInput = z.object({
+  formId: z.uuid(),
+  userId: z.uuid(),
+  notifyCreatorOnSubmission: z.boolean().optional(),
+  sendRespondentConfirmation: z.boolean().optional(),
+});
+
+export type UpdateFormNotificationSettingsInputType = z.infer<typeof updateFormNotificationSettingsInput>;
+
 // Publish form
 export const publishFormInput = z.object({
   formId: z.uuid().describe("The unique identifier of the form"),
@@ -91,7 +120,11 @@ export const setFormPasswordInput = z.object({
   userId: z.uuid().describe("The unique identifier of the form owner"),
   password: z
     .string()
-    .min(4, "Password must be at least 4 characters")
+    .min(8, "Password must be at least 8 characters")
+    .regex(
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/,
+      "Password must include uppercase, lowercase, and a number",
+    )
     .max(100)
     .nullable()
     .describe("Plain-text password to set, or null to clear"),

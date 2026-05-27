@@ -8,6 +8,7 @@ import {
   numeric,
   pgEnum,
   unique,
+  jsonb,
 } from "drizzle-orm/pg-core";
 import { formTables } from "./form";
 import { formPagesTable } from "./form-page";
@@ -38,7 +39,14 @@ export const formFieldsTable = pgTable(
     index: numeric("index", { scale: 2 }).notNull(),
 
     type: fieldTypeEnum("type").notNull(),
-    options: text("options"),
+    config: jsonb("config").notNull().$type<{
+      maxWords?: number;
+      options?: string[];
+      min?: number;
+      max?: number;
+      step?: number;
+      mode?: "single" | "range";
+    }>(),
 
     formId: uuid("form_id").references(() => formTables.id),
 

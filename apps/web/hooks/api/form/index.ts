@@ -112,6 +112,37 @@ export const usePublishForm = (formId: string) => {
   };
 };
 
+export const useSetFormVisibility = (formId: string) => {
+  const utils = trpc.useUtils();
+
+  const {
+    mutateAsync: setFormVisibilityAsync,
+    mutate: setFormVisibility,
+    error,
+    failureCount,
+    isError,
+    isIdle,
+    isSuccess,
+    status,
+  } = trpc.form.setFormVisibility.useMutation({
+    onSuccess: async () => {
+      await utils.form.listForms.invalidate();
+      await utils.form.getFormById.invalidate({ formId });
+    },
+  });
+
+  return {
+    setFormVisibilityAsync,
+    setFormVisibility,
+    error,
+    failureCount,
+    isError,
+    isIdle,
+    isSuccess,
+    status,
+  };
+};
+
 export const useUnpublishForm = (formId: string) => {
   const utils = trpc.useUtils();
 
@@ -141,6 +172,28 @@ export const useUnpublishForm = (formId: string) => {
     isSuccess,
     status,
   };
+};
+
+export const useUpdateFormLimits = (formId: string) => {
+  const utils = trpc.useUtils();
+  const mutation = trpc.form.updateFormLimits.useMutation({
+    onSuccess: async () => {
+      await utils.form.getFormById.invalidate({ formId });
+      await utils.form.listForms.invalidate();
+    },
+  });
+  return mutation;
+};
+
+export const useUpdateFormNotificationSettings = (formId: string) => {
+  const utils = trpc.useUtils();
+  const mutation = trpc.form.updateFormNotificationSettings.useMutation({
+    onSuccess: async () => {
+      await utils.form.getFormById.invalidate({ formId });
+      await utils.form.listForms.invalidate();
+    },
+  });
+  return mutation;
 };
 
 export const useDeleteForm = () => {
@@ -509,6 +562,26 @@ export const useGetPagesByFormId = (formId: string) => {
   };
 };
 
+export const useGetPublishedPagesBySlug = (slug: string) => {
+  const {
+    data: pages,
+    error,
+    isFetching,
+    isFetched,
+    isLoading,
+    status,
+  } = trpc.form.getPublishedPagesBySlug.useQuery({ slug }, { enabled: Boolean(slug) });
+
+  return {
+    pages,
+    error,
+    isFetching,
+    isFetched,
+    isLoading,
+    status,
+  };
+};
+
 export const useCreatePage = (formId: string) => {
   const utils = trpc.useUtils();
 
@@ -586,6 +659,24 @@ export const useReorderPages = (formId: string) => {
   return { reorderPagesAsync, reorderPages, error, isPending, status };
 };
 
+export const useReorderFields = (formId: string) => {
+  const utils = trpc.useUtils();
+
+  const {
+    mutateAsync: reorderFieldsAsync,
+    mutate: reorderFields,
+    error,
+    isPending,
+    status,
+  } = trpc.form.reorderFields.useMutation({
+    onSuccess: async () => {
+      await utils.form.getFieldsByFormId.invalidate({ formId });
+    },
+  });
+
+  return { reorderFieldsAsync, reorderFields, error, isPending, status };
+};
+
 export const useAssignFieldToPage = (formId: string) => {
   const utils = trpc.useUtils();
 
@@ -635,4 +726,9 @@ export const useListTemplates = () => {
   } = trpc.explore.listTemplates.useQuery(undefined);
 
   return { templates: templates ?? [], isLoading, error };
+};
+
+export const useListPublicForms = () => {
+  const { data, isLoading, error } = trpc.explore.listPublicForms.useQuery(undefined);
+  return { forms: data ?? [], isLoading, error };
 };

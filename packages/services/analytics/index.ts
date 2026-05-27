@@ -174,7 +174,7 @@ class AnalyticsService {
         label: formFieldsTable.label,
         type: formFieldsTable.type,
         isRequired: formFieldsTable.isRequired,
-        options: formFieldsTable.options,
+        options: formFieldsTable.config,
       })
       .from(formFieldsTable)
       .where(eq(formFieldsTable.formId, formId))

@@ -2,6 +2,7 @@ import { formFieldService, formPageService, formService, formSubmissionService, 
 import { authenticatedProcedure, publicProcedure, router } from "../../trpc";
 import { generatePath } from "../../utils/path-generator";
 import { submissionBus } from "../../utils/submission-bus";
+import { assertUnlockRateLimit } from "../../utils/unlock-rate-limit";
 import {
   assignFieldToPageInputModel,
   assignFieldToPageOutputModel,
@@ -27,6 +28,8 @@ import {
   getFormSubmissionsOutputModel,
   getPagesByFormIdInputModel,
   getPagesByFormIdOutputModel,
+  getPublishedPagesBySlugInputModel,
+  getPublishedPagesBySlugOutputModel,
   getPublishedFormBySlugInputModel,
   getPublishedFormBySlugOutputModel,
   listFormsInputModel,
@@ -35,6 +38,14 @@ import {
   publishFormOutputModel,
   reorderPagesInputModel,
   reorderPagesOutputModel,
+  reorderFieldsInputModel,
+  reorderFieldsOutputModel,
+  setFormVisibilityInputModel,
+  setFormVisibilityOutputModel,
+  updateFormLimitsInputModel,
+  updateFormLimitsOutputModel,
+  updateFormNotificationSettingsInputModel,
+  updateFormNotificationSettingsOutputModel,
   setFormPasswordInputModel,
   setFormPasswordOutputModel,
   submitPublicFormInputModel,
@@ -116,6 +127,38 @@ export const formRouter = router({
       });
       return result;
     }),
+  setFormVisibility: authenticatedProcedure
+    .meta({
+      openapi: { method: "POST", path: getPath("/setVisibility"), tags: TAGS, protect: true },
+    })
+    .input(setFormVisibilityInputModel)
+    .output(setFormVisibilityOutputModel)
+    .mutation(async ({ input, ctx }) => {
+      const result = await formService.setFormVisibility({
+        formId: input.formId,
+        userId: ctx.user.id,
+        visibility: input.visibility,
+      });
+      return result;
+    }),
+  updateFormLimits: authenticatedProcedure
+    .meta({
+      openapi: { method: "PATCH", path: getPath("/updateLimits"), tags: TAGS, protect: true },
+    })
+    .input(updateFormLimitsInputModel)
+    .output(updateFormLimitsOutputModel)
+    .mutation(async ({ input, ctx }) => {
+      return formService.updateFormLimits({ ...input, userId: ctx.user.id });
+    }),
+  updateFormNotificationSettings: authenticatedProcedure
+    .meta({
+      openapi: { method: "PATCH", path: getPath("/updateNotificationSettings"), tags: TAGS, protect: true },
+    })
+    .input(updateFormNotificationSettingsInputModel)
+    .output(updateFormNotificationSettingsOutputModel)
+    .mutation(async ({ input, ctx }) => {
+      return formService.updateFormNotificationSettings({ ...input, userId: ctx.user.id });
+    }),
   unpublishForm: authenticatedProcedure
     .meta({
       openapi: { method: "POST", path: getPath("/unpublishForm"), tags: TAGS, protect: true },
@@ -149,7 +192,7 @@ export const formRouter = router({
     .input(createFieldInputModel)
     .output(createFieldOutputModel)
     .mutation(async ({ input, ctx }) => {
-      const { formId, label, description, placeholder, isRequired, type, options } = input;
+      const { formId, label, description, placeholder, isRequired, type, config } = input;
 
       const result = await formFieldService.createField({
         formId,
@@ -159,7 +202,7 @@ export const formRouter = router({
         placeholder,
         isRequired,
         type,
-        options,
+        config,
       });
 
       return result;
@@ -186,6 +229,21 @@ export const formRouter = router({
     .mutation(async ({ input, ctx }) => {
       const result = await formFieldService.deleteField({
         ...input,
+        userId: ctx.user.id,
+      });
+      return result;
+    }),
+  reorderFields: authenticatedProcedure
+    .meta({
+      openapi: { method: "POST", path: getPath("/reorderFields"), tags: TAGS, protect: true },
+    })
+    .input(reorderFieldsInputModel)
+    .output(reorderFieldsOutputModel)
+    .mutation(async ({ input, ctx }) => {
+      const result = await formFieldService.reorderFields({
+        formId: input.formId,
+        pageId: input.pageId,
+        fieldIds: input.fieldIds,
         userId: ctx.user.id,
       });
       return result;
@@ -311,7 +369,24 @@ export const formRouter = router({
     })
     .input(unlockFormInputModel)
     .output(unlockFormOutputModel)
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      const forwardedFor = ctx.req.headers["x-forwarded-for"];
+      const forwardedIp =
+        typeof forwardedFor === "string"
+          ? forwardedFor.split(",")[0]?.trim()
+          : Array.isArray(forwardedFor)
+            ? forwardedFor[0]?.trim()
+            : undefined;
+      const ip = (forwardedIp ?? ctx.req.ip ?? "unknown").trim() || "unknown";
+      const unlockContext = await formService.getUnlockRateLimitContext(input.slug);
+      const accountId = unlockContext?.accountId ?? `slug:${input.slug}`;
+
+      await assertUnlockRateLimit({
+        ip,
+        slug: input.slug,
+        accountId,
+      });
+
       const result = await formService.unlockForm({
         slug: input.slug,
         password: input.password,
@@ -365,14 +440,28 @@ export const formRouter = router({
       return result;
     }),
 
-  getPagesByFormId: publicProcedure
+  getPagesByFormId: authenticatedProcedure
     .meta({
-      openapi: { method: "GET", path: getPath("/getPages"), tags: TAGS },
+      openapi: { method: "GET", path: getPath("/getPages"), tags: TAGS, protect: true },
     })
     .input(getPagesByFormIdInputModel)
     .output(getPagesByFormIdOutputModel)
+    .query(async ({ input, ctx }) => {
+      const result = await formPageService.getPagesByFormId({
+        formId: input.formId,
+        userId: ctx.user.id,
+      });
+      return result;
+    }),
+
+  getPublishedPagesBySlug: publicProcedure
+    .meta({
+      openapi: { method: "GET", path: getPath("/getPublishedPagesBySlug"), tags: TAGS },
+    })
+    .input(getPublishedPagesBySlugInputModel)
+    .output(getPublishedPagesBySlugOutputModel)
     .query(async ({ input }) => {
-      const result = await formPageService.getPagesByFormId({ formId: input.formId });
+      const result = await formPageService.getPublishedPagesBySlug({ slug: input.slug });
       return result;
     }),
 
@@ -433,7 +522,14 @@ export const formRouter = router({
         isRequired: boolean;
         placeholder?: string | null;
         description?: string | null;
-        options?: string | null;
+        config?: {
+          maxWords?: number;
+          options?: string[];
+          min?: number;
+          max?: number;
+          step?: number;
+          mode?: "single" | "range";
+        };
       }>);
 
       for (let i = 0; i < fields.length; i++) {
@@ -446,7 +542,7 @@ export const formRouter = router({
           isRequired: f.isRequired,
           placeholder: f.placeholder ?? undefined,
           description: f.description ?? undefined,
-          options: f.options ?? undefined,
+          config: f.config ?? {},
         });
       }
 
@@ -456,4 +552,3 @@ export const formRouter = router({
       return { id: formId, slug };
     }),
 });
-

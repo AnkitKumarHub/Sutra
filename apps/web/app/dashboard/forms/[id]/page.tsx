@@ -1,14 +1,13 @@
 "use client"
 
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
 import {
-  PencilIcon, Trash2Icon, TypeIcon, HashIcon, MailIcon,
-  ToggleLeftIcon, KeyIcon, GlobeIcon, SettingsIcon, CopyIcon,
-  ShareIcon, ShieldIcon, PlusIcon, GripVerticalIcon, CheckIcon,
-  XIcon, LayersIcon, ChevronRightIcon, LockIcon, LockOpenIcon,
-  FileTextIcon, ClockIcon,
+  PencilIcon, Trash2Icon, GlobeIcon, CopyIcon,
+  ShareIcon, ShieldIcon, PlusIcon, GripVerticalIcon,
+  XIcon, LockIcon, LockOpenIcon,
+  FileTextIcon, ClockIcon, ChevronsUpDownIcon, ChevronLeftIcon,
 } from "lucide-react"
 import { Controller, useForm } from "react-hook-form"
 import { toast } from "sonner"
@@ -38,16 +37,19 @@ import {
   useGetFormById,
   useUpdateForm,
   usePublishForm,
+  useSetFormVisibility,
+  useUpdateFormLimits,
+  useUpdateFormNotificationSettings,
   useUnpublishForm,
   useDeleteForm,
   useSetFormPassword,
   useGetPagesByFormId,
   useCreatePage,
-  useUpdatePage,
   useDeletePage,
   useReorderPages,
+  useAssignFieldToPage,
+  useReorderFields,
 } from "~/hooks/api/form"
-import { Badge } from "~/components/ui/badge"
 import { Button } from "~/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card"
 import {
@@ -69,6 +71,7 @@ import {
   SelectValue,
 } from "~/components/ui/select"
 import { Textarea } from "~/components/ui/textarea"
+import { Collapsible, CollapsibleContent } from "~/components/ui/collapsible"
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -78,37 +81,126 @@ type FieldType =
 
 type CreateFieldValues = {
   label: string; description?: string; placeholder?: string
-  type: FieldType; isRequired: boolean; options?: string
+  type: FieldType; isRequired: boolean;
+  optionValues?: string;
+  maxWords?: number;
+  ratingMin?: number;
+  ratingMax?: number;
+  ratingStep?: number;
+  dateMode?: "single" | "range";
 }
 type UpdateFieldValues = {
   label: string; description?: string; placeholder?: string
-  type: FieldType; isRequired: boolean; options?: string
+  type: FieldType; isRequired: boolean;
+  optionValues?: string;
+  maxWords?: number;
+  ratingMin?: number;
+  ratingMax?: number;
+  ratingStep?: number;
+  dateMode?: "single" | "range";
 }
-type EditFormValues = { title: string; description?: string; slug?: string }
 type PasswordFormValues = { password: string | null; unlockDurationMinutes: number }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-const getFieldIcon = (type: FieldType) => {
-  switch (type) {
-    case "SHORT_TEXT": case "LONG_TEXT": return <TypeIcon className="h-4 w-4" />
-    case "NUMBER": case "RATING": return <HashIcon className="h-4 w-4" />
-    case "EMAIL": return <MailIcon className="h-4 w-4" />
-    case "CHECKBOX": return <ToggleLeftIcon className="h-4 w-4" />
-    case "SINGLE_SELECT": case "MULTI_SELECT": return <KeyIcon className="h-4 w-4" />
-    default: return <TypeIcon className="h-4 w-4" />
+const OPTION_ENABLED_TYPES: FieldType[] = ["SINGLE_SELECT", "MULTI_SELECT", "CHECKBOX", "RATING", "DATE"]
+const DEFAULT_OPTION_ROWS = ["Option 1", "Option 2"]
+const supportsOptionRows = (type: FieldType) => OPTION_ENABLED_TYPES.includes(type)
+
+const buildFieldConfig = (values: CreateFieldValues | UpdateFieldValues) => {
+  if (values.type === "SHORT_TEXT" || values.type === "LONG_TEXT") {
+    return { maxWords: values.maxWords || undefined };
   }
-}
+  if (supportsOptionRows(values.type)) {
+    return {
+      options: (values.optionValues ?? "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean),
+    };
+  }
+  return {};
+};
 
 // ── Sortable Page Item ────────────────────────────────────────────────────────
 
 interface Page { id: string; title: string; order: number }
 
+type FormFieldRow = {
+  id: string
+  label: string
+  pageId: string | null
+  index: string
+  type: FieldType
+  isRequired: boolean
+  description: string | null
+  placeholder: string | null
+  config: {
+    maxWords?: number
+    options?: string[]
+    min?: number
+    max?: number
+    step?: number
+    mode?: "single" | "range"
+  }
+}
+
+const sortFieldsByIndex = (list: FormFieldRow[]) =>
+  [...list].sort((a, b) => parseFloat(a.index) - parseFloat(b.index))
+
+function SortableFieldItem({
+  field,
+  onEdit,
+  onDelete,
+  isDeleting,
+}: {
+  field: FormFieldRow
+  onEdit: (id: string) => void
+  onDelete: (id: string) => void
+  isDeleting: boolean
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: field.id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex items-center justify-between gap-2 rounded-md border bg-muted/30 px-2 py-1.5 text-sm"
+    >
+      <div className="flex min-w-0 items-center gap-2">
+        <button
+          type="button"
+          className="cursor-grab text-muted-foreground/40 hover:text-muted-foreground active:cursor-grabbing touch-none"
+          {...attributes}
+          {...listeners}
+        >
+          <GripVerticalIcon className="h-3.5 w-3.5" />
+        </button>
+        <span className="truncate">{field.label}</span>
+      </div>
+      <div className="flex items-center gap-1">
+        <Button type="button" size="icon-sm" variant="outline" onClick={() => onEdit(field.id)}>
+          <PencilIcon className="h-3.5 w-3.5" />
+        </Button>
+        <Button type="button" size="icon-sm" variant="destructive" disabled={isDeleting} onClick={() => onDelete(field.id)}>
+          <Trash2Icon className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 function SortablePageItem({
-  page, onRename, onDelete,
+  page, onDelete,
 }: {
   page: Page
-  onRename: (id: string, currentTitle: string) => void
   onDelete: (id: string) => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
@@ -138,13 +230,6 @@ function SortablePageItem({
       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
         <button
           type="button"
-          onClick={() => onRename(page.id, page.title)}
-          className="rounded p-1 hover:bg-muted text-muted-foreground"
-        >
-          <PencilIcon className="h-3.5 w-3.5" />
-        </button>
-        <button
-          type="button"
           onClick={() => onDelete(page.id)}
           className="rounded p-1 hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
         >
@@ -164,12 +249,12 @@ export default function FormBuilderPage() {
 
   // ── Data ──────────────────────────────────────────────────────────────────
   const { form, isLoading: isFormLoading } = useGetFormById(formId ?? "")
-  const { fields, isLoading: isFieldsLoading, isFetching: isFieldsFetching, error: fieldsError } = useGetFields(formId ?? "")
+  const { fields } = useGetFields(formId ?? "")
   const { pages: serverPages, isLoading: isPagesLoading } = useGetPagesByFormId(formId ?? "")
 
   // Local page order for optimistic DnD
   const [localPageOrder, setLocalPageOrder] = useState<Page[] | null>(null)
-  const pages: Page[] = localPageOrder ?? serverPages ?? []
+  const pages: Page[] = useMemo(() => localPageOrder ?? serverPages ?? [], [localPageOrder, serverPages])
 
   // ── Mutations ─────────────────────────────────────────────────────────────
   const { createFieldAsync, status: createStatus } = useCreateField(formId ?? "")
@@ -177,44 +262,112 @@ export default function FormBuilderPage() {
   const { deleteFieldAsync, status: deleteStatus } = useDeleteField(formId ?? "")
   const { updateFormAsync, status: updateFormStatus } = useUpdateForm(formId ?? "")
   const { publishFormAsync, status: publishStatus } = usePublishForm(formId ?? "")
+  const { setFormVisibilityAsync, status: visibilityStatus } = useSetFormVisibility(formId ?? "")
   const { unpublishFormAsync, status: unpublishStatus } = useUnpublishForm(formId ?? "")
   const { deleteFormAsync, status: deleteFormStatus } = useDeleteForm()
+  const { mutateAsync: updateFormLimitsAsync, status: updateLimitsStatus } = useUpdateFormLimits(formId ?? "")
+  const { mutateAsync: updateNotifAsync, status: updateNotifStatus } = useUpdateFormNotificationSettings(formId ?? "")
   const { setFormPasswordAsync, isPending: isSettingPassword } = useSetFormPassword(formId ?? "")
   const { createPageAsync, isPending: isCreatingPage } = useCreatePage(formId ?? "")
-  const { updatePageAsync } = useUpdatePage(formId ?? "")
   const { deletePageAsync } = useDeletePage(formId ?? "")
   const { reorderPagesAsync } = useReorderPages(formId ?? "")
+  const { assignFieldToPageAsync } = useAssignFieldToPage(formId ?? "")
+  const { reorderFieldsAsync } = useReorderFields(formId ?? "")
+
+  const ensuredDefaultPageRef = useRef(false)
+  const migratedUnassignedRef = useRef(false)
 
   // ── UI State ──────────────────────────────────────────────────────────────
   const [editingFieldId, setEditingFieldId] = useState<string | null>(null)
-  const [isEditingForm, setIsEditingForm] = useState(false)
   const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false)
-  const [isPagesDialogOpen, setIsPagesDialogOpen] = useState(false)
-  const [renamingPageId, setRenamingPageId] = useState<string | null>(null)
-  const [renameValue, setRenameValue] = useState("")
   const [newPageTitle, setNewPageTitle] = useState("New Page")
+  const [createOptions, setCreateOptions] = useState<string[]>(DEFAULT_OPTION_ROWS)
+  const [editOptions, setEditOptions] = useState<string[]>(DEFAULT_OPTION_ROWS)
+  const [isFormSettingsOpen, setIsFormSettingsOpen] = useState(true)
+  const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null)
+  const [localFieldOrder, setLocalFieldOrder] = useState<Record<string, string[]>>({})
+  const [formTitleDraft, setFormTitleDraft] = useState("")
+  const [formDescriptionDraft, setFormDescriptionDraft] = useState("")
+  const [formSlugDraft, setFormSlugDraft] = useState("")
 
   // ── Forms ─────────────────────────────────────────────────────────────────
   const createFieldForm = useForm<CreateFieldValues>({
-    defaultValues: { label: "", description: "", placeholder: "", type: "SHORT_TEXT", isRequired: false, options: "" },
+    defaultValues: { label: "", description: "", placeholder: "", type: "SHORT_TEXT", isRequired: false, optionValues: "", dateMode: "single", ratingMin: 1, ratingMax: 5, ratingStep: 1 },
   })
   const updateFieldForm = useForm<UpdateFieldValues>({
-    defaultValues: { label: "", description: "", placeholder: "", type: "SHORT_TEXT", isRequired: false, options: "" },
-  })
-  const editFormForm = useForm<EditFormValues>({
-    defaultValues: { title: "", description: "" },
+    defaultValues: { label: "", description: "", placeholder: "", type: "SHORT_TEXT", isRequired: false, optionValues: "", dateMode: "single", ratingMin: 1, ratingMax: 5, ratingStep: 1 },
   })
   const passwordForm = useForm<PasswordFormValues>({
     defaultValues: { password: "", unlockDurationMinutes: 30 },
   })
+  const createFieldType = createFieldForm.watch("type")
+  const updateFieldType = updateFieldForm.watch("type")
 
   // ── Memos ─────────────────────────────────────────────────────────────────
   const editingField = useMemo(() => fields?.find((f) => f.id === editingFieldId), [fields, editingFieldId])
+  const selectedField = useMemo(() => fields?.find((f) => f.id === selectedFieldId) ?? null, [fields, selectedFieldId])
 
   const publicUrl = useMemo(() => {
     if (typeof window === "undefined") return ""
     return `${window.location.origin}/f/${form?.slug ?? ""}`
   }, [form?.slug])
+
+  useEffect(() => {
+    if (supportsOptionRows(createFieldType) && createOptions.length === 0) {
+      setCreateOptions(DEFAULT_OPTION_ROWS)
+    }
+  }, [createFieldType, createOptions.length])
+
+  useEffect(() => {
+    if (!fields?.length) {
+      setSelectedFieldId(null)
+      return
+    }
+    if (!selectedFieldId || !fields.some((f) => f.id === selectedFieldId)) {
+      setSelectedFieldId(fields[0]!.id)
+    }
+  }, [fields, selectedFieldId])
+
+  useEffect(() => {
+    setLocalFieldOrder({})
+  }, [fields])
+
+  useEffect(() => {
+    if (!form) return
+    setFormTitleDraft(form.title ?? "")
+    setFormDescriptionDraft(form.description ?? "")
+    setFormSlugDraft(form.slug ?? "")
+  }, [form, form?.id, form?.title, form?.description, form?.slug])
+
+  useEffect(() => {
+    if (!formId || isPagesLoading || ensuredDefaultPageRef.current) return
+    if (pages.length > 0) {
+      ensuredDefaultPageRef.current = true
+      return
+    }
+    ensuredDefaultPageRef.current = true
+    void createPageAsync({ formId, title: "Page 1" })
+  }, [formId, isPagesLoading, pages.length, createPageAsync])
+
+  useEffect(() => {
+    const firstPageId = pages[0]?.id
+    if (!firstPageId || !fields || migratedUnassignedRef.current) return
+    const unassigned = fields.filter((f) => !f.pageId)
+    if (unassigned.length === 0) {
+      migratedUnassignedRef.current = true
+      return
+    }
+    void (async () => {
+      try {
+        await Promise.all(
+          unassigned.map((field) => assignFieldToPageAsync({ fieldId: field.id, pageId: firstPageId })),
+        )
+        migratedUnassignedRef.current = true
+      } catch {
+        toast.error("Failed to move unassigned fields to default page")
+      }
+    })()
+  }, [pages, fields, assignFieldToPageAsync])
 
   // ── Status flags ──────────────────────────────────────────────────────────
   const isCreating = createStatus === "pending"
@@ -222,7 +375,10 @@ export default function FormBuilderPage() {
   const isDeleting = deleteStatus === "pending"
   const isUpdatingForm = updateFormStatus === "pending"
   const isTogglingPublish = publishStatus === "pending" || unpublishStatus === "pending"
+  const isUpdatingVisibility = visibilityStatus === "pending"
   const isDeletingForm = deleteFormStatus === "pending"
+  const isUpdatingLimits = updateLimitsStatus === "pending"
+  const isUpdatingNotif = updateNotifStatus === "pending"
 
   // ── Slug copy ─────────────────────────────────────────────────────────────
   const handleCopyLink = useCallback(() => {
@@ -235,15 +391,23 @@ export default function FormBuilderPage() {
   const handleCreateField = async (values: CreateFieldValues) => {
     if (!formId) return
     try {
-      await createFieldAsync({
+      const optionValues = supportsOptionRows(values.type)
+        ? createOptions.map((o) => o.trim()).filter(Boolean).join(", ")
+        : values.optionValues
+      const created = await createFieldAsync({
         formId, label: values.label,
         description: values.description || null,
         placeholder: values.placeholder || null,
         type: values.type, isRequired: values.isRequired,
-        options: values.options || null,
+        config: buildFieldConfig({ ...values, optionValues }),
       })
+      const defaultPageId = pages[0]?.id
+      if (defaultPageId) {
+        await assignFieldToPageAsync({ fieldId: created.id, pageId: defaultPageId })
+      }
       toast.success("Field created")
-      createFieldForm.reset({ label: "", description: "", placeholder: "", type: "SHORT_TEXT", isRequired: false, options: "" })
+      createFieldForm.reset({ label: "", description: "", placeholder: "", type: "SHORT_TEXT", isRequired: false, optionValues: "", dateMode: "single", ratingMin: 1, ratingMax: 5, ratingStep: 1 })
+      setCreateOptions(DEFAULT_OPTION_ROWS)
     } catch {
       toast.error("Failed to create field")
     }
@@ -256,24 +420,35 @@ export default function FormBuilderPage() {
     updateFieldForm.reset({
       label: field.label, description: field.description ?? "",
       placeholder: field.placeholder ?? "", type: field.type,
-      isRequired: field.isRequired, options: field.options ?? "",
+      isRequired: field.isRequired,
+      optionValues: (field.config?.options ?? []).join(", "),
+      maxWords: field.config?.maxWords,
+      ratingMin: field.config?.min ?? 1,
+      ratingMax: field.config?.max ?? 5,
+      ratingStep: field.config?.step ?? 1,
+      dateMode: field.config?.mode ?? "single",
     })
+    setEditOptions((field.config?.options && field.config.options.length > 0) ? field.config.options : DEFAULT_OPTION_ROWS)
   }
 
   const closeEditDialog = () => {
     setEditingFieldId(null)
-    updateFieldForm.reset({ label: "", description: "", placeholder: "", type: "SHORT_TEXT", isRequired: false, options: "" })
+    updateFieldForm.reset({ label: "", description: "", placeholder: "", type: "SHORT_TEXT", isRequired: false, optionValues: "", dateMode: "single", ratingMin: 1, ratingMax: 5, ratingStep: 1 })
+    setEditOptions(DEFAULT_OPTION_ROWS)
   }
 
   const handleUpdateField = async (values: UpdateFieldValues) => {
     if (!editingFieldId) return
     try {
+      const optionValues = supportsOptionRows(values.type)
+        ? editOptions.map((o) => o.trim()).filter(Boolean).join(", ")
+        : values.optionValues
       await updateFieldAsync({
         fieldId: editingFieldId, label: values.label,
         description: values.description || null,
         placeholder: values.placeholder || null,
         type: values.type, isRequired: values.isRequired,
-        options: values.options || null,
+        config: buildFieldConfig({ ...values, optionValues }),
       })
       toast.success("Field updated")
       closeEditDialog()
@@ -293,22 +468,50 @@ export default function FormBuilderPage() {
     }
   }
 
-  // ── Form settings handlers ────────────────────────────────────────────────
-  const openEditFormDialog = () => {
-    if (!form) return
-    editFormForm.reset({ title: form.title, description: form.description ?? "", slug: form.slug ?? "" })
-    setIsEditingForm(true)
+  const handleOptionRowChange = (
+    target: "create" | "edit",
+    index: number,
+    value: string,
+  ) => {
+    const setter = target === "create" ? setCreateOptions : setEditOptions
+    setter((prev) => prev.map((item, i) => (i === index ? value : item)))
   }
 
-  const handleUpdateForm = async (values: EditFormValues) => {
-    if (!formId) return
+  const addOptionRow = (target: "create" | "edit") => {
+    const setter = target === "create" ? setCreateOptions : setEditOptions
+    setter((prev) => [...prev, `Option ${prev.length + 1}`])
+  }
+
+  const removeOptionRow = (target: "create" | "edit", index: number) => {
+    const setter = target === "create" ? setCreateOptions : setEditOptions
+    setter((prev) => {
+      if (prev.length <= 2) return prev
+      return prev.filter((_, i) => i !== index)
+    })
+  }
+
+  // ── Form settings handlers ────────────────────────────────────────────────
+  const saveInlineFormSettings = async (options?: { silent?: boolean }) => {
+    if (!formId || !form) return
     try {
-      await updateFormAsync({ formId, title: values.title, description: values.description || null, slug: values.slug || undefined })
-      toast.success("Form updated")
-      setIsEditingForm(false)
+      await updateFormAsync({
+        formId,
+        title: formTitleDraft.trim() || form.title,
+        description: formDescriptionDraft.trim() || null,
+        slug: formSlugDraft.trim() || undefined,
+      })
+      if (!options?.silent) {
+        toast.success("Form settings updated")
+      }
     } catch {
-      toast.error("Failed to update form")
+      toast.error("Failed to update form settings")
     }
+  }
+
+  const handleHeaderSave = async () => {
+    await saveInlineFormSettings({ silent: true })
+    router.refresh()
+    toast.success("Changes saved")
   }
 
   const handleTogglePublish = async () => {
@@ -326,6 +529,18 @@ export default function FormBuilderPage() {
     }
   }
 
+  const handleVisibilityChange = async (visibility: "PUBLIC" | "UNLISTED") => {
+    if (!formId || !form) return
+    if (form.visibility === visibility) return
+
+    try {
+      await setFormVisibilityAsync({ formId, visibility })
+      toast.success(`Visibility set to ${visibility.toLowerCase()}`)
+    } catch {
+      toast.error("Failed to update form visibility")
+    }
+  }
+
   const handleDeleteForm = async () => {
     if (!formId) return
     if (!window.confirm("Are you sure you want to delete this form? This action cannot be undone.")) return
@@ -335,6 +550,16 @@ export default function FormBuilderPage() {
       router.push("/dashboard/forms")
     } catch {
       toast.error("Failed to delete form")
+    }
+  }
+
+  const handleToggleNotif = async (key: "notifyCreatorOnSubmission" | "sendRespondentConfirmation", value: boolean) => {
+    if (!formId) return
+    try {
+      await updateNotifAsync({ formId, [key]: value })
+      toast.success("Notification settings updated")
+    } catch {
+      toast.error("Failed to update notification settings")
     }
   }
 
@@ -375,11 +600,12 @@ export default function FormBuilderPage() {
 
     const oldIndex = pages.findIndex((p) => p.id === active.id)
     const newIndex = pages.findIndex((p) => p.id === over.id)
+    if (oldIndex < 0 || newIndex < 0 || !formId) return
     const reordered = arrayMove(pages, oldIndex, newIndex)
     setLocalPageOrder(reordered)
 
     try {
-      await reorderPagesAsync({ formId: formId!, pageIds: reordered.map((p) => p.id) })
+      await reorderPagesAsync({ formId, pageIds: reordered.map((p) => p.id) })
     } catch {
       setLocalPageOrder(null)
       toast.error("Failed to reorder pages")
@@ -408,27 +634,46 @@ export default function FormBuilderPage() {
     }
   }
 
-  const startRenaming = (id: string, currentTitle: string) => {
-    setRenamingPageId(id)
-    setRenameValue(currentTitle)
-  }
+  const handleFieldDragEnd = useCallback(async (pageId: string, event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id || !formId) return
 
-  const commitRename = async () => {
-    if (!renamingPageId || !renameValue.trim()) return
+    const pageFields = sortFieldsByIndex((fields ?? []).filter((f) => f.pageId === pageId))
+    const oldIndex = pageFields.findIndex((f) => f.id === active.id)
+    const newIndex = pageFields.findIndex((f) => f.id === over.id)
+    if (oldIndex < 0 || newIndex < 0) return
+
+    const reordered = arrayMove(pageFields, oldIndex, newIndex)
+    setLocalFieldOrder((prev) => ({ ...prev, [pageId]: reordered.map((f) => f.id) }))
     try {
-      await updatePageAsync({ pageId: renamingPageId, title: renameValue.trim() })
-      toast.success("Page renamed")
+      await reorderFieldsAsync({
+        formId,
+        pageId,
+        fieldIds: reordered.map((f) => f.id),
+      })
     } catch {
-      toast.error("Failed to rename page")
+      setLocalFieldOrder((prev) => {
+        const next = { ...prev }
+        delete next[pageId]
+        return next
+      })
+      toast.error("Failed to reorder fields")
     }
-    setRenamingPageId(null)
-  }
+  }, [fields, formId, reorderFieldsAsync])
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-1 flex-col">
       <div className="@container/main flex flex-1 flex-col gap-2">
         <div className="flex flex-col gap-4 px-4 py-4 md:gap-6 md:px-6 md:py-6">
+
+          <Link
+            href="/dashboard/forms"
+            className="inline-flex w-fit items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <ChevronLeftIcon className="h-4 w-4" />
+            Forms
+          </Link>
 
           {/* ── Header Card ── */}
           <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
@@ -440,21 +685,6 @@ export default function FormBuilderPage() {
                   <>
                     <div className="flex flex-wrap items-center gap-3">
                       <h1 className="text-2xl font-semibold tracking-tight truncate">{form?.title}</h1>
-                      <Badge variant={form?.status === "PUBLISHED" ? "default" : "secondary"}>
-                        {form?.status}
-                      </Badge>
-                      {form?.isPasswordProtected && (
-                        <Badge variant="outline" className="gap-1 text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-950/30">
-                          <LockIcon className="h-3 w-3" />
-                          Protected
-                        </Badge>
-                      )}
-                      {pages.length > 0 && (
-                        <Badge variant="outline" className="gap-1 text-violet-600 border-violet-300 bg-violet-50 dark:bg-violet-950/30">
-                          <LayersIcon className="h-3 w-3" />
-                          {pages.length} pages
-                        </Badge>
-                      )}
                     </div>
                     <p className="text-sm text-muted-foreground max-w-xl line-clamp-2">
                       {form?.description || "No description provided."}
@@ -488,7 +718,7 @@ export default function FormBuilderPage() {
                       </div>
                     ) : (
                       <p className="text-xs text-muted-foreground/60 mt-1 italic">
-                        No slug set. Add one in Edit Form settings.
+                        No slug set. Add one in Form Settings.
                       </p>
                     )}
                   </>
@@ -496,32 +726,18 @@ export default function FormBuilderPage() {
               </div>
 
               <div className="flex flex-wrap items-center gap-2 shrink-0">
-                <Button variant="outline" size="sm" onClick={openEditFormDialog} disabled={isFormLoading}>
-                  <SettingsIcon className="mr-1.5 h-3.5 w-3.5" />
-                  Edit Form
-                </Button>
-                <Button variant="outline" size="sm" onClick={openPasswordDialog} disabled={isFormLoading}>
-                  {form?.isPasswordProtected
-                    ? <><LockOpenIcon className="mr-1.5 h-3.5 w-3.5" />Password</>
-                    : <><ShieldIcon className="mr-1.5 h-3.5 w-3.5" />Protect</>}
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => setIsPagesDialogOpen(true)} disabled={isFormLoading}>
-                  <LayersIcon className="mr-1.5 h-3.5 w-3.5" />
-                  Pages
-                </Button>
-                <Button
-                  variant={form?.status === "PUBLISHED" ? "secondary" : "default"}
-                  size="sm"
-                  onClick={handleTogglePublish}
-                  disabled={isFormLoading || isTogglingPublish}
-                >
-                  <GlobeIcon className="mr-1.5 h-3.5 w-3.5" />
-                  {form?.status === "PUBLISHED" ? "Unpublish" : "Publish"}
+                <Button variant="default" size="sm" onClick={() => void handleHeaderSave()} disabled={isUpdatingForm}>
+                  Save
                 </Button>
                 <Button asChild variant="outline" size="sm">
                   <Link href={`/dashboard/forms/${formId}/submissions`}>
                     <FileTextIcon className="mr-1.5 h-3.5 w-3.5" />
                     Responses
+                  </Link>
+                </Button>
+                <Button asChild variant="outline" size="sm">
+                  <Link href={`/dashboard/forms/${formId}/preview`}>
+                    Preview
                   </Link>
                 </Button>
                 <Button variant="destructive" size="icon" className="h-8 w-8" onClick={handleDeleteForm} disabled={isDeletingForm}>
@@ -532,9 +748,8 @@ export default function FormBuilderPage() {
           </div>
 
           {/* ── Grid ── */}
-          <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-3">
-            {/* Left: Add Field */}
-            <div className="lg:col-span-1">
+          <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-4">
+            <div className="space-y-6 xl:col-span-1">
               <Card>
                 <CardHeader>
                   <CardTitle>Add Field</CardTitle>
@@ -569,10 +784,30 @@ export default function FormBuilderPage() {
                       <FieldLabel htmlFor="new-placeholder">Placeholder</FieldLabel>
                       <Input id="new-placeholder" placeholder="Enter value" {...createFieldForm.register("placeholder")} />
                     </Field>
-                    <Field>
-                      <FieldLabel htmlFor="new-options">Options</FieldLabel>
-                      <Input id="new-options" placeholder="Comma-separated options" {...createFieldForm.register("options")} />
-                    </Field>
+                    {supportsOptionRows(createFieldType) && (
+                      <Field>
+                        <div className="mb-2 flex items-center justify-between">
+                          <FieldLabel>Options</FieldLabel>
+                          <Button type="button" size="sm" variant="outline" onClick={() => addOptionRow("create")}>Add Option</Button>
+                        </div>
+                        <div className="space-y-2">
+                          {createOptions.map((value, index) => (
+                            <div key={`create-opt-${index}`} className="flex items-center gap-2">
+                              <Input value={value} onChange={(e) => handleOptionRowChange("create", index, e.target.value)} />
+                              <Button type="button" size="icon-sm" variant="outline" onClick={() => removeOptionRow("create", index)} disabled={createOptions.length <= 2}>
+                                <XIcon className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      </Field>
+                    )}
+                    {(createFieldType === "SHORT_TEXT" || createFieldType === "LONG_TEXT") && (
+                      <Field>
+                        <FieldLabel htmlFor="new-max-words">Word Limit</FieldLabel>
+                        <Input id="new-max-words" type="number" min={1} {...createFieldForm.register("maxWords", { valueAsNumber: true })} />
+                      </Field>
+                    )}
                     <Field>
                       <FieldLabel htmlFor="new-description">Description</FieldLabel>
                       <Textarea id="new-description" placeholder="Optional field hint" {...createFieldForm.register("description")} />
@@ -591,88 +826,256 @@ export default function FormBuilderPage() {
                   </form>
                 </CardContent>
               </Card>
+
             </div>
 
-            {/* Right: Fields list */}
-            <div className="lg:col-span-2">
+            <div className="space-y-6 xl:col-span-2">
               <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0">
-                  <div className="space-y-1.5">
-                    <CardTitle>Fields</CardTitle>
-                    <CardDescription>Manage fields for this form.</CardDescription>
+                <CardHeader>
+                  <CardTitle>Multi-Page Builder</CardTitle>
+                  <CardDescription>Create pages and drag fields to reorder within each page.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center gap-2">
+                    <Input
+                      placeholder="Page title..."
+                      value={newPageTitle}
+                      onChange={(e) => setNewPageTitle(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void handleAddPage() } }}
+                      className="flex-1"
+                    />
+                    <Button type="button" onClick={() => void handleAddPage()} disabled={isCreatingPage || !newPageTitle.trim()}>
+                      <PlusIcon className="h-4 w-4" />
+                    </Button>
                   </div>
-                  {isFieldsFetching && !isFieldsLoading && (
-                    <Badge variant="secondary" className="animate-pulse">Refreshing...</Badge>
+
+                  {pages.length > 0 && (
+                    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(event) => void handleDragEnd(event)}>
+                      <SortableContext items={pages.map((p) => p.id)} strategy={verticalListSortingStrategy}>
+                        <div className="space-y-2">
+                          {pages.map((page) => {
+                            const pageFields = sortFieldsByIndex((fields ?? []).filter((f) => f.pageId === page.id))
+                            const orderedIds = localFieldOrder[page.id]
+                            const pageFieldsById = new Map(pageFields.map((field) => [field.id, field]))
+                            const displayFields = orderedIds
+                              ? orderedIds.map((id) => pageFieldsById.get(id)).filter((f): f is FormFieldRow => Boolean(f))
+                              : pageFields
+                            return (
+                              <div key={page.id} className="rounded-lg border p-3">
+                                <SortablePageItem page={page} onDelete={(id) => void handleDeletePage(id)} />
+                                <DndContext
+                                  sensors={sensors}
+                                  collisionDetection={closestCenter}
+                                  onDragEnd={(event) => void handleFieldDragEnd(page.id, event)}
+                                >
+                                  <SortableContext items={displayFields.map((f) => f.id)} strategy={verticalListSortingStrategy}>
+                                    <div className="mt-2 space-y-2">
+                                      {displayFields.map((field) => (
+                                        <SortableFieldItem
+                                          key={field.id}
+                                          field={field}
+                                          onEdit={openEditDialog}
+                                          onDelete={handleDeleteField}
+                                          isDeleting={isDeleting}
+                                        />
+                                      ))}
+                                      {displayFields.length === 0 && (
+                                        <p className="text-xs text-muted-foreground">No fields on this page yet.</p>
+                                      )}
+                                    </div>
+                                  </SortableContext>
+                                </DndContext>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </SortableContext>
+                    </DndContext>
                   )}
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="space-y-6 xl:col-span-1">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle>Form Settings</CardTitle>
+                      <CardDescription>Core form controls in one place.</CardDescription>
+                    </div>
+                    <Button type="button" variant="ghost" size="icon-sm" onClick={() => setIsFormSettingsOpen((prev) => !prev)}>
+                      <ChevronsUpDownIcon className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="flex flex-col gap-3">
-                    {isFieldsLoading ? (
-                      <div className="flex h-24 items-center justify-center rounded-lg border border-dashed text-muted-foreground">
-                        Loading fields...
+                  <Collapsible open={isFormSettingsOpen} onOpenChange={setIsFormSettingsOpen}>
+                    <CollapsibleContent className="space-y-4">
+                      <Field>
+                        <FieldLabel>Title</FieldLabel>
+                        <Input
+                          value={formTitleDraft}
+                          maxLength={55}
+                          onChange={(e) => setFormTitleDraft(e.target.value)}
+                          onBlur={() => void saveInlineFormSettings()}
+                        />
+                      </Field>
+                      <Field>
+                        <FieldLabel>Description</FieldLabel>
+                        <Textarea
+                          value={formDescriptionDraft}
+                          maxLength={255}
+                          onChange={(e) => setFormDescriptionDraft(e.target.value)}
+                          onBlur={() => void saveInlineFormSettings()}
+                        />
+                      </Field>
+                      <Field>
+                        <FieldLabel>Custom Slug</FieldLabel>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-muted-foreground shrink-0 select-none font-mono">/f/</span>
+                          <Input
+                            value={formSlugDraft}
+                            maxLength={255}
+                            placeholder="my-form"
+                            onChange={(e) => setFormSlugDraft(e.target.value)}
+                            onBlur={() => void saveInlineFormSettings()}
+                          />
+                        </div>
+                      </Field>
+                      <Field>
+                        <FieldLabel>Visibility</FieldLabel>
+                        <Select
+                          value={form?.visibility ?? "UNLISTED"}
+                          onValueChange={(v: "PUBLIC" | "UNLISTED") => void handleVisibilityChange(v)}
+                          disabled={isFormLoading || isUpdatingVisibility}
+                        >
+                          <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="UNLISTED">Unlisted</SelectItem>
+                            <SelectItem value="PUBLIC">Public</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </Field>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant={form?.status === "PUBLISHED" ? "secondary" : "default"}
+                          onClick={handleTogglePublish}
+                          disabled={isFormLoading || isTogglingPublish}
+                        >
+                          <GlobeIcon className="mr-1.5 h-3.5 w-3.5" />
+                          {form?.status === "PUBLISHED" ? "Unpublish" : "Publish"}
+                        </Button>
+                        <Button variant="outline" onClick={openPasswordDialog} disabled={isFormLoading}>
+                          {form?.isPasswordProtected
+                            ? <><LockOpenIcon className="mr-1.5 h-3.5 w-3.5" />Password</>
+                            : <><ShieldIcon className="mr-1.5 h-3.5 w-3.5" />Protect</>}
+                        </Button>
                       </div>
-                    ) : fieldsError ? (
-                      <div className="flex h-24 items-center justify-center rounded-lg border border-dashed text-destructive">
-                        Failed to load fields.
+                      <Field>
+                        <FieldLabel>Expires At</FieldLabel>
+                        <Input
+                          type="datetime-local"
+                          value={form?.expiresAt ? new Date(form.expiresAt).toISOString().slice(0, 16) : ""}
+                          onChange={async (e) => {
+                            if (!formId) return
+                            await updateFormLimitsAsync({ formId, expiresAt: e.target.value ? new Date(e.target.value).toISOString() : null })
+                          }}
+                          disabled={isUpdatingLimits}
+                        />
+                      </Field>
+                      <Field>
+                        <FieldLabel>Max Responses</FieldLabel>
+                        <Input
+                          type="number"
+                          min={1}
+                          value={form?.maxResponses ?? ""}
+                          onChange={async (e) => {
+                            if (!formId) return
+                            const v = e.target.value ? Number(e.target.value) : null
+                            await updateFormLimitsAsync({ formId, maxResponses: v })
+                          }}
+                          disabled={isUpdatingLimits}
+                        />
+                      </Field>
+                      <Field orientation="horizontal">
+                        <Checkbox
+                          checked={Boolean(form?.notifyCreatorOnSubmission)}
+                          onCheckedChange={(v) => void handleToggleNotif("notifyCreatorOnSubmission", Boolean(v))}
+                          disabled={isUpdatingNotif}
+                        />
+                        <FieldDescription>Notify creator on submission</FieldDescription>
+                      </Field>
+                      <Field orientation="horizontal">
+                        <Checkbox
+                          checked={Boolean(form?.sendRespondentConfirmation)}
+                          onCheckedChange={(v) => void handleToggleNotif("sendRespondentConfirmation", Boolean(v))}
+                          disabled={isUpdatingNotif}
+                        />
+                        <FieldDescription>Send confirmation email</FieldDescription>
+                      </Field>
+                    </CollapsibleContent>
+                  </Collapsible>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Field Validation</CardTitle>
+                  <CardDescription>Validation controls for selected field.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <Select value={selectedFieldId ?? ""} onValueChange={setSelectedFieldId}>
+                    <SelectTrigger><SelectValue placeholder="Select field" /></SelectTrigger>
+                    <SelectContent>
+                      {fields?.map((field) => (
+                        <SelectItem key={field.id} value={field.id}>{field.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {selectedField && (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          checked={selectedField.isRequired}
+                          onCheckedChange={async (value) => {
+                            await updateFieldAsync({
+                              fieldId: selectedField.id,
+                              label: selectedField.label,
+                              description: selectedField.description,
+                              placeholder: selectedField.placeholder,
+                              type: selectedField.type,
+                              isRequired: Boolean(value),
+                              config: selectedField.config ?? {},
+                            })
+                          }}
+                        />
+                        <FieldDescription>Required field</FieldDescription>
                       </div>
-                    ) : fields?.length ? (
-                      fields.map((field) => {
-                        const page = pages.find((p) => p.id === field.pageId)
-                        return (
-                          <div
-                            key={field.id}
-                            className="group flex flex-col justify-between gap-4 rounded-lg border p-4 shadow-sm transition-all hover:border-primary/20 hover:bg-muted/30 sm:flex-row sm:items-center"
-                          >
-                            <div className="flex items-start gap-4 sm:items-center">
-                              <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary sm:mt-0">
-                                {getFieldIcon(field.type)}
-                              </div>
-                              <div className="flex flex-col gap-1.5">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <span className="font-semibold leading-none">{field.label}</span>
-                                  {field.isRequired && (
-                                    <Badge variant="secondary" className="px-1.5 py-0 text-[10px] uppercase tracking-wider">Required</Badge>
-                                  )}
-                                  <Badge variant="outline" className="px-1.5 py-0 text-[10px] uppercase tracking-wider text-muted-foreground">
-                                    {field.type}
-                                  </Badge>
-                                  {page && (
-                                    <Badge variant="outline" className="gap-1 px-1.5 py-0 text-[10px] text-violet-600 border-violet-300">
-                                      <LayersIcon className="h-2.5 w-2.5" />
-                                      {page.title}
-                                    </Badge>
-                                  )}
-                                </div>
-                                <div className="text-sm text-muted-foreground flex items-center gap-2">
-                                  <span className="font-mono text-xs">{field.labelKey}</span>
-                                  {field.description && (
-                                    <>
-                                      <span className="h-1 w-1 rounded-full bg-muted-foreground/50" />
-                                      <span className="truncate max-w-xs">{field.description}</span>
-                                    </>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                            <div className="flex shrink-0 items-center gap-2 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100">
-                              <Button type="button" size="icon-sm" variant="outline" onClick={() => openEditDialog(field.id)}>
-                                <PencilIcon className="h-4 w-4" />
-                                <span className="sr-only">Edit</span>
-                              </Button>
-                              <Button type="button" size="icon-sm" variant="destructive" disabled={isDeleting} onClick={() => handleDeleteField(field.id)}>
-                                <Trash2Icon className="h-4 w-4" />
-                                <span className="sr-only">Delete</span>
-                              </Button>
-                            </div>
-                          </div>
-                        )
-                      })
-                    ) : (
-                      <div className="flex h-24 items-center justify-center rounded-lg border border-dashed text-muted-foreground">
-                        No fields yet. Add your first field.
-                      </div>
-                    )}
-                  </div>
+                      {(selectedField.type === "SHORT_TEXT" || selectedField.type === "LONG_TEXT") && (
+                        <Field>
+                          <FieldLabel>Word Limit</FieldLabel>
+                          <Input
+                            type="number"
+                            min={1}
+                            defaultValue={selectedField.config?.maxWords ?? ""}
+                            onBlur={async (e) => {
+                              const maxWords = e.target.value ? Number(e.target.value) : undefined
+                              await updateFieldAsync({
+                                fieldId: selectedField.id,
+                                label: selectedField.label,
+                                description: selectedField.description,
+                                placeholder: selectedField.placeholder,
+                                type: selectedField.type,
+                                isRequired: selectedField.isRequired,
+                                config: { ...selectedField.config, maxWords },
+                              })
+                            }}
+                          />
+                        </Field>
+                      )}
+                    </>
+                  )}
                 </CardContent>
               </Card>
             </div>
@@ -716,19 +1119,27 @@ export default function FormBuilderPage() {
                 <FieldLabel htmlFor="edit-placeholder">Placeholder</FieldLabel>
                 <Input id="edit-placeholder" {...updateFieldForm.register("placeholder")} />
               </Field>
-              <Field>
-                <FieldLabel htmlFor="edit-options">Options</FieldLabel>
-                <Input id="edit-options" {...updateFieldForm.register("options")} />
-              </Field>
+              {supportsOptionRows(updateFieldType) && (
+                <Field>
+                  <div className="mb-2 flex items-center justify-between">
+                    <FieldLabel>Options</FieldLabel>
+                    <Button type="button" size="sm" variant="outline" onClick={() => addOptionRow("edit")}>Add Option</Button>
+                  </div>
+                  <div className="space-y-2">
+                    {editOptions.map((value, index) => (
+                      <div key={`edit-opt-${index}`} className="flex items-center gap-2">
+                        <Input value={value} onChange={(e) => handleOptionRowChange("edit", index, e.target.value)} />
+                        <Button type="button" size="icon-sm" variant="outline" onClick={() => removeOptionRow("edit", index)} disabled={editOptions.length <= 2}>
+                          <XIcon className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </Field>
+              )}
               <Field>
                 <FieldLabel htmlFor="edit-description">Description</FieldLabel>
                 <Textarea id="edit-description" {...updateFieldForm.register("description")} />
-              </Field>
-              <Field orientation="horizontal">
-                <Controller control={updateFieldForm.control} name="isRequired" render={({ field }) => (
-                  <Checkbox checked={field.value} onCheckedChange={(checked) => field.onChange(Boolean(checked))} />
-                )} />
-                <FieldDescription>Required field</FieldDescription>
               </Field>
             </FieldGroup>
             <DialogFooter>
@@ -737,40 +1148,6 @@ export default function FormBuilderPage() {
             </DialogFooter>
           </form>
           {editingField && <p className="text-xs text-muted-foreground">Field key: {editingField.labelKey}</p>}
-        </DialogContent>
-      </Dialog>
-
-      {/* ── Edit Form Dialog ── */}
-      <Dialog open={isEditingForm} onOpenChange={setIsEditingForm}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit Form</DialogTitle>
-            <DialogDescription>Update form title, slug and description.</DialogDescription>
-          </DialogHeader>
-          <form className="flex flex-col gap-6" onSubmit={editFormForm.handleSubmit(handleUpdateForm)}>
-            <FieldGroup>
-              <Field>
-                <FieldLabel htmlFor="edit-form-title">Title</FieldLabel>
-                <Input id="edit-form-title" maxLength={55} required {...editFormForm.register("title", { required: true })} />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="edit-form-slug">Custom Slug</FieldLabel>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground shrink-0 select-none font-mono">/f/</span>
-                  <Input id="edit-form-slug" maxLength={255} placeholder="my-form" {...editFormForm.register("slug")} />
-                </div>
-                <FieldDescription>Optional. URL-friendly identifier. Leave blank to use auto-generated slug.</FieldDescription>
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="edit-form-description">Description</FieldLabel>
-                <Textarea id="edit-form-description" maxLength={255} {...editFormForm.register("description")} />
-              </Field>
-            </FieldGroup>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsEditingForm(false)} disabled={isUpdatingForm}>Cancel</Button>
-              <Button type="submit" disabled={isUpdatingForm}>{isUpdatingForm ? "Saving..." : "Save Changes"}</Button>
-            </DialogFooter>
-          </form>
         </DialogContent>
       </Dialog>
 
@@ -857,97 +1234,6 @@ export default function FormBuilderPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Pages Management Dialog ── */}
-      <Dialog open={isPagesDialogOpen} onOpenChange={setIsPagesDialogOpen}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <LayersIcon className="h-5 w-5 text-violet-500" />
-              Manage Pages
-            </DialogTitle>
-            <DialogDescription>
-              Drag to reorder pages. Fields can be assigned to pages from their edit dialog.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="flex flex-col gap-4">
-            {/* Add new page */}
-            <div className="flex items-center gap-2">
-              <Input
-                placeholder="Page title..."
-                value={newPageTitle}
-                onChange={(e) => setNewPageTitle(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void handleAddPage() } }}
-                className="flex-1"
-              />
-              <Button type="button" onClick={() => void handleAddPage()} disabled={isCreatingPage || !newPageTitle.trim()}>
-                <PlusIcon className="h-4 w-4" />
-              </Button>
-            </div>
-
-            {/* Sortable pages list */}
-            {isPagesLoading ? (
-              <div className="flex h-24 items-center justify-center text-muted-foreground text-sm">Loading pages...</div>
-            ) : pages.length === 0 ? (
-              <div className="flex h-24 items-center justify-center rounded-lg border border-dashed text-muted-foreground text-sm">
-                No pages yet. Add your first page above.
-              </div>
-            ) : (
-              <DndContext
-                sensors={sensors}
-                collisionDetection={closestCenter}
-                onDragEnd={(event) => void handleDragEnd(event)}
-              >
-                <SortableContext items={pages.map((p) => p.id)} strategy={verticalListSortingStrategy}>
-                  <div className="flex flex-col gap-2">
-                    {pages.map((page) =>
-                      renamingPageId === page.id ? (
-                        <div key={page.id} className="flex items-center gap-2 rounded-lg border bg-muted/50 px-3 py-2.5">
-                          <GripVerticalIcon className="h-4 w-4 text-muted-foreground/30" />
-                          <Input
-                            value={renameValue}
-                            autoFocus
-                            className="flex-1 h-7 text-sm"
-                            onChange={(e) => setRenameValue(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") { e.preventDefault(); void commitRename() }
-                              if (e.key === "Escape") setRenamingPageId(null)
-                            }}
-                          />
-                          <button type="button" onClick={() => void commitRename()} className="text-green-600 hover:text-green-700 rounded p-1">
-                            <CheckIcon className="h-4 w-4" />
-                          </button>
-                          <button type="button" onClick={() => setRenamingPageId(null)} className="text-muted-foreground hover:text-foreground rounded p-1">
-                            <XIcon className="h-4 w-4" />
-                          </button>
-                        </div>
-                      ) : (
-                        <SortablePageItem
-                          key={page.id}
-                          page={page}
-                          onRename={startRenaming}
-                          onDelete={(id) => void handleDeletePage(id)}
-                        />
-                      )
-                    )}
-                  </div>
-                </SortableContext>
-              </DndContext>
-            )}
-
-            {pages.length > 0 && (
-              <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                <ChevronRightIcon className="h-3 w-3" />
-                Drag the grip handle to reorder pages. Reorder is saved automatically.
-              </p>
-            )}
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsPagesDialogOpen(false)}>Done</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

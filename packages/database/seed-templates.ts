@@ -65,9 +65,9 @@ const TEMPLATES: Array<{
       { label: "Full Name",            labelKey: "full-name",            type: "SHORT_TEXT",    isRequired: true },
       { label: "Email Address",        labelKey: "email-address",        type: "EMAIL",         isRequired: true },
       { label: "Phone Number",         labelKey: "phone-number",         type: "SHORT_TEXT",    isRequired: false, placeholder: "+91 98765 43210" },
-      { label: "Session Preference",   labelKey: "session-preference",   type: "SINGLE_SELECT", isRequired: true,  options: JSON.stringify(["Morning", "Afternoon", "Evening"]) },
-      { label: "Dietary Requirements", labelKey: "dietary-requirements", type: "SINGLE_SELECT", isRequired: false, options: JSON.stringify(["None", "Vegetarian", "Vegan", "Gluten-Free"]) },
-      { label: "T-Shirt Size",         labelKey: "t-shirt-size",         type: "SINGLE_SELECT", isRequired: false, options: JSON.stringify(["XS", "S", "M", "L", "XL", "XXL"]) },
+      { label: "Session Preference",   labelKey: "session-preference",   type: "SINGLE_SELECT", isRequired: true,  config: { options: ["Morning", "Afternoon", "Evening"] } },
+      { label: "Dietary Requirements", labelKey: "dietary-requirements", type: "SINGLE_SELECT", isRequired: false, config: { options: ["None", "Vegetarian", "Vegan", "Gluten-Free"] } },
+      { label: "T-Shirt Size",         labelKey: "t-shirt-size",         type: "SINGLE_SELECT", isRequired: false, config: { options: ["XS", "S", "M", "L", "XL", "XXL"] } },
     ],
   },
   // 4. Employee Feedback
@@ -78,7 +78,7 @@ const TEMPLATES: Array<{
     emoji: "📊",
     isPaid: false,
     fields: [
-      { label: "Department",              labelKey: "department",              type: "SINGLE_SELECT", isRequired: true,  options: JSON.stringify(["Engineering", "Design", "Marketing", "Sales", "HR", "Operations", "Finance", "Other"]) },
+      { label: "Department",              labelKey: "department",              type: "SINGLE_SELECT", isRequired: true,  config: { options: ["Engineering", "Design", "Marketing", "Sales", "HR", "Operations", "Finance", "Other"] } },
       { label: "Rate Your Manager",       labelKey: "rate-your-manager",       type: "RATING",        isRequired: true },
       { label: "Rate Team Collaboration", labelKey: "rate-team-collaboration", type: "RATING",        isRequired: true },
       { label: "What's going well?",      labelKey: "whats-going-well",        type: "LONG_TEXT",     isRequired: false, placeholder: "Share what the team is doing great..." },
@@ -97,7 +97,7 @@ const TEMPLATES: Array<{
       { label: "Instructor Name",      labelKey: "instructor-name",      type: "SHORT_TEXT",    isRequired: false },
       { label: "Clarity Rating",       labelKey: "clarity-rating",       type: "RATING",        isRequired: true },
       { label: "Content Depth Rating", labelKey: "content-depth-rating", type: "RATING",        isRequired: true },
-      { label: "Would You Recommend?", labelKey: "would-you-recommend",  type: "SINGLE_SELECT", isRequired: true,  options: JSON.stringify(["Yes", "No", "Maybe"]) },
+      { label: "Would You Recommend?", labelKey: "would-you-recommend",  type: "SINGLE_SELECT", isRequired: true,  config: { options: ["Yes", "No", "Maybe"] } },
       { label: "Additional Comments",  labelKey: "additional-comments",  type: "LONG_TEXT",     isRequired: false, placeholder: "Any other thoughts?" },
     ],
   },
@@ -110,8 +110,8 @@ const TEMPLATES: Array<{
     isPaid: false,
     fields: [
       { label: "Reporter Email",     labelKey: "reporter-email",     type: "EMAIL",         isRequired: true },
-      { label: "Product Area",       labelKey: "product-area",       type: "SINGLE_SELECT", isRequired: true,  options: JSON.stringify(["Dashboard", "Form Builder", "Public Forms", "Analytics", "Auth", "API", "Other"]) },
-      { label: "Severity",           labelKey: "severity",           type: "SINGLE_SELECT", isRequired: true,  options: JSON.stringify(["Critical", "High", "Medium", "Low"]) },
+      { label: "Product Area",       labelKey: "product-area",       type: "SINGLE_SELECT", isRequired: true,  config: { options: ["Dashboard", "Form Builder", "Public Forms", "Analytics", "Auth", "API", "Other"] } },
+      { label: "Severity",           labelKey: "severity",           type: "SINGLE_SELECT", isRequired: true,  config: { options: ["Critical", "High", "Medium", "Low"] } },
       { label: "Steps to Reproduce", labelKey: "steps-to-reproduce", type: "LONG_TEXT",     isRequired: true,  placeholder: "1. Go to...\n2. Click...\n3. Observe..." },
       { label: "Expected vs Actual", labelKey: "expected-vs-actual", type: "LONG_TEXT",     isRequired: false, placeholder: "Expected: ...\nActual: ..." },
       { label: "Browser / OS",       labelKey: "browser-os",         type: "SHORT_TEXT",    isRequired: false, placeholder: "Chrome 124 / macOS 14" },
@@ -127,7 +127,7 @@ const TEMPLATES: Array<{
     fields: [
       { label: "Full Name",           labelKey: "full-name",           type: "SHORT_TEXT",    isRequired: true },
       { label: "Date of Birth",       labelKey: "date-of-birth",       type: "DATE",          isRequired: true },
-      { label: "Gender",              labelKey: "gender",              type: "SINGLE_SELECT", isRequired: true,  options: JSON.stringify(["Male", "Female", "Non-binary", "Prefer not to say"]) },
+      { label: "Gender",              labelKey: "gender",              type: "SINGLE_SELECT", isRequired: true,  config: { options: ["Male", "Female", "Non-binary", "Prefer not to say"] } },
       { label: "Primary Complaint",   labelKey: "primary-complaint",   type: "LONG_TEXT",     isRequired: true,  placeholder: "Describe your main health concern..." },
       { label: "Current Medications", labelKey: "current-medications", type: "LONG_TEXT",     isRequired: false, placeholder: "List all medications and dosages..." },
       { label: "Known Allergies",     labelKey: "known-allergies",     type: "SHORT_TEXT",    isRequired: false, placeholder: "e.g. Penicillin, Peanuts" },
@@ -143,14 +143,14 @@ const TEMPLATES: Array<{
     emoji: "🔬",
     isPaid: true,
     fields: [
-      { label: "Age Bracket",           labelKey: "age-bracket",           type: "SINGLE_SELECT", isRequired: true,  options: JSON.stringify(["Under 18", "18-24", "25-34", "35-44", "45-54", "55+"]) },
-      { label: "Gender",                labelKey: "gender",                type: "SINGLE_SELECT", isRequired: false, options: JSON.stringify(["Male", "Female", "Non-binary", "Prefer not to say"]) },
-      { label: "Annual Income Range",   labelKey: "annual-income-range",   type: "SINGLE_SELECT", isRequired: false, options: JSON.stringify(["Under 3L", "3L-6L", "6L-12L", "12L-25L", "Above 25L"]) },
-      { label: "Product Features Used", labelKey: "product-features-used", type: "MULTI_SELECT",  isRequired: false, options: JSON.stringify(["Form Builder", "Analytics", "Templates", "CSV Export", "Sharing"]) },
+      { label: "Age Bracket",           labelKey: "age-bracket",           type: "SINGLE_SELECT", isRequired: true,  config: { options: ["Under 18", "18-24", "25-34", "35-44", "45-54", "55+"] } },
+      { label: "Gender",                labelKey: "gender",                type: "SINGLE_SELECT", isRequired: false, config: { options: ["Male", "Female", "Non-binary", "Prefer not to say"] } },
+      { label: "Annual Income Range",   labelKey: "annual-income-range",   type: "SINGLE_SELECT", isRequired: false, config: { options: ["Under 3L", "3L-6L", "6L-12L", "12L-25L", "Above 25L"] } },
+      { label: "Product Features Used", labelKey: "product-features-used", type: "MULTI_SELECT",  isRequired: false, config: { options: ["Form Builder", "Analytics", "Templates", "CSV Export", "Sharing"] } },
       { label: "Brand Perception",      labelKey: "brand-perception",      type: "RATING",        isRequired: true },
       { label: "What do you love?",     labelKey: "what-do-you-love",      type: "LONG_TEXT",     isRequired: false },
       { label: "What's missing?",       labelKey: "whats-missing",         type: "LONG_TEXT",     isRequired: false },
-      { label: "Recommend to friends?", labelKey: "recommend-to-friends",  type: "SINGLE_SELECT", isRequired: true,  options: JSON.stringify(["Definitely", "Probably", "Neutral", "Probably not", "Definitely not"]) },
+      { label: "Recommend to friends?", labelKey: "recommend-to-friends",  type: "SINGLE_SELECT", isRequired: true,  config: { options: ["Definitely", "Probably", "Neutral", "Probably not", "Definitely not"] } },
       { label: "Follow-up OK?",         labelKey: "follow-up-ok",          type: "CHECKBOX",      isRequired: false, description: "Check this if we can reach out for a 10-min call" },
       { label: "Contact Email",         labelKey: "contact-email",         type: "EMAIL",         isRequired: false },
     ],
@@ -199,3 +199,5 @@ run().catch((err) => {
   console.error("❌ Seed failed:", err);
   process.exit(1);
 });
+
+

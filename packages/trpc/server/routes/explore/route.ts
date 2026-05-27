@@ -1,7 +1,9 @@
 import { publicProcedure, router } from "../../trpc";
 import { generatePath } from "../../utils/path-generator";
-import { templateService } from "../../services";
+import { formService, templateService } from "../../services";
 import {
+  listPublicFormsInputModel,
+  listPublicFormsOutputModel,
   listTemplatesInputModel,
   listTemplatesOutputModel,
 } from "./model";
@@ -10,6 +12,22 @@ const TAGS = ["Explore"];
 const getPath = generatePath("/explore");
 
 export const exploreRouter = router({
+  listPublicForms: publicProcedure
+    .meta({
+      openapi: { method: "GET", path: getPath("/listPublicForms"), tags: TAGS },
+    })
+    .input(listPublicFormsInputModel)
+    .output(listPublicFormsOutputModel)
+    .query(async () => {
+      const forms = await formService.listPublicForms();
+      return forms.map((f) => ({
+        id: f.id,
+        title: f.title,
+        description: f.description ?? null,
+        slug: f.slug ?? "",
+        createdAt: f.createdAt ?? null,
+      }));
+    }),
   listTemplates: publicProcedure
     .meta({
       openapi: { method: "GET", path: getPath("/listTemplates"), tags: TAGS },

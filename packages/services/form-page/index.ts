@@ -8,12 +8,14 @@ import {
   type CreatePageInputType,
   type DeletePageInputType,
   type GetPagesByFormIdInputType,
+  type GetPublishedPagesBySlugInputType,
   type ReorderPagesInputType,
   type UpdatePageInputType,
   assignFieldToPageInput,
   createPageInput,
   deletePageInput,
   getPagesByFormIdInput,
+  getPublishedPagesBySlugInput,
   reorderPagesInput,
   updatePageInput,
 } from "./model";
@@ -140,7 +142,22 @@ class FormPageService {
    * No auth check — used by the public form renderer too.
    */
   public async getPagesByFormId(payload: GetPagesByFormIdInputType) {
-    const { formId } = await getPagesByFormIdInput.parseAsync(payload);
+    const { formId, userId } = await getPagesByFormIdInput.parseAsync(payload);
+
+    const [form] = await db
+      .select({ id: formTables.id })
+      .from(formTables)
+      .where(
+        and(
+          eq(formTables.id, formId),
+          eq(formTables.createdBy, userId),
+          isNull(formTables.deletedAt),
+        ),
+      );
+
+    if (!form) {
+      throw new Error("Form not found or you do not have permission");
+    }
 
     const pages = await db
       .select({
@@ -150,6 +167,37 @@ class FormPageService {
       })
       .from(formPagesTable)
       .where(eq(formPagesTable.formId, formId))
+      .orderBy(asc(formPagesTable.order));
+
+    return pages;
+  }
+
+  public async getPublishedPagesBySlug(payload: GetPublishedPagesBySlugInputType) {
+    const { slug } = await getPublishedPagesBySlugInput.parseAsync(payload);
+
+    const [form] = await db
+      .select({ id: formTables.id })
+      .from(formTables)
+      .where(
+        and(
+          eq(formTables.slug, slug),
+          eq(formTables.status, "PUBLISHED"),
+          isNull(formTables.deletedAt),
+        ),
+      );
+
+    if (!form) {
+      throw new Error("Form not found or not published");
+    }
+
+    const pages = await db
+      .select({
+        id: formPagesTable.id,
+        title: formPagesTable.title,
+        order: formPagesTable.order,
+      })
+      .from(formPagesTable)
+      .where(eq(formPagesTable.formId, form.id))
       .orderBy(asc(formPagesTable.order));
 
     return pages;

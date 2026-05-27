@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const formStatusModel = z.enum(["DRAFT", "PUBLISHED", "ARCHIVED"]);
+export const formVisibilityModel = z.enum(["PUBLIC", "UNLISTED"]);
 
 export const createFormInputModel = z.object({
   title: z
@@ -31,8 +32,14 @@ export const listFormsOutputModel = z.array(
     description: z.string().nullable().describe("The optional description of the form"),
     slug: z.string().nullable().describe("The slug of the form"),
     status: formStatusModel.describe("The current status of the form"),
+    visibility: formVisibilityModel.describe("The discoverability mode of the form"),
     isPasswordProtected: z.boolean().optional().describe("Whether the form has a password"),
     unlockDurationMinutes: z.number().nullable().optional().describe("Unlock token duration"),
+    expiresAt: z.date().nullable().optional(),
+    maxResponses: z.number().nullable().optional(),
+    notifyCreatorOnSubmission: z.boolean().optional(),
+    sendRespondentConfirmation: z.boolean().optional(),
+    responseCount: z.number().int().nonnegative().describe("Total submission count for this form"),
     createdAt: z.date().nullable().describe("Creation Timestamp"),
     updatedAt: z.date().nullable().describe("Last Updated Timestamp"),
   }),
@@ -56,6 +63,40 @@ export const publishFormInputModel = z.object({
 export const publishFormOutputModel = z.object({
   id: z.string().describe("Unique identifier for the published form"),
   status: formStatusModel.describe("The new status of the form"),
+});
+
+export const setFormVisibilityInputModel = z.object({
+  formId: z.string().uuid().describe("Unique identifier for the form"),
+  visibility: formVisibilityModel.describe("Discoverability mode for the form"),
+});
+
+export const setFormVisibilityOutputModel = z.object({
+  id: z.string().describe("Unique identifier for the updated form"),
+  visibility: formVisibilityModel.describe("The updated visibility mode"),
+});
+
+export const updateFormLimitsInputModel = z.object({
+  formId: z.string().uuid(),
+  expiresAt: z.string().datetime().nullable().optional(),
+  maxResponses: z.number().int().min(1).nullable().optional(),
+});
+
+export const updateFormLimitsOutputModel = z.object({
+  id: z.string(),
+  expiresAt: z.date().nullable(),
+  maxResponses: z.number().nullable(),
+});
+
+export const updateFormNotificationSettingsInputModel = z.object({
+  formId: z.string().uuid(),
+  notifyCreatorOnSubmission: z.boolean().optional(),
+  sendRespondentConfirmation: z.boolean().optional(),
+});
+
+export const updateFormNotificationSettingsOutputModel = z.object({
+  id: z.string(),
+  notifyCreatorOnSubmission: z.boolean(),
+  sendRespondentConfirmation: z.boolean(),
 });
 
 export const unpublishFormInputModel = z.object({
@@ -87,6 +128,15 @@ export const formFieldTypeModel = z.enum([
   "DATE",
 ]);
 
+export const fieldConfigModel = z.object({
+  maxWords: z.number().int().min(1).optional(),
+  options: z.array(z.string()).optional(),
+  min: z.number().int().optional(),
+  max: z.number().int().optional(),
+  step: z.number().int().min(1).optional(),
+  mode: z.enum(["single", "range"]).optional(),
+});
+
 export const createFieldInputModel = z.object({
   formId: z.string().uuid().describe("Unique identifier for the form"),
   label: z.string().min(1).max(100).describe("Display label of the field"),
@@ -94,7 +144,7 @@ export const createFieldInputModel = z.object({
   placeholder: z.string().optional().nullable().describe("Optional field placeholder"),
   isRequired: z.boolean().optional().default(false).describe("Whether the field is required"),
   type: formFieldTypeModel.describe("Type of the field"),
-  options: z.string().optional().nullable().describe("Optional serialized options"),
+  config: fieldConfigModel.optional().describe("Type-specific field configuration"),
 });
 
 export const createFieldOutputModel = z.object({
@@ -110,7 +160,7 @@ export const updateFieldInputModel = z.object({
   placeholder: z.string().optional().nullable().describe("Optional field placeholder"),
   isRequired: z.boolean().optional().describe("Whether the field is required"),
   type: formFieldTypeModel.optional().describe("Type of the field"),
-  options: z.string().optional().nullable().describe("Optional serialized options"),
+  config: fieldConfigModel.optional().describe("Type-specific field configuration"),
 });
 
 export const updateFieldOutputModel = z.object({
@@ -123,6 +173,16 @@ export const deleteFieldInputModel = z.object({
 
 export const deleteFieldOutputModel = z.object({
   id: z.string().describe("Unique identifier for the deleted field"),
+});
+
+export const reorderFieldsInputModel = z.object({
+  formId: z.string().uuid().describe("Form ID"),
+  pageId: z.string().uuid().nullable().describe("Page ID, or null for unassigned fields"),
+  fieldIds: z.array(z.string().uuid()).min(1).describe("Field IDs in desired order"),
+});
+
+export const reorderFieldsOutputModel = z.object({
+  success: z.boolean(),
 });
 
 export const getFieldsByFormIdInputModel = z.object({
@@ -140,7 +200,7 @@ export const getFieldsByFormIdOutputModel = z.array(
     isRequired: z.boolean().describe("Whether the field is required"),
     index: z.string().describe("Fractional sort index"),
     type: formFieldTypeModel.describe("Type of the field"),
-    options: z.string().nullable().describe("Optional serialized options"),
+    config: fieldConfigModel.describe("Type-specific field configuration"),
     pageId: z.string().uuid().nullable().describe("Page this field belongs to"),
     createdAt: z.date().nullable().describe("Creation timestamp"),
     updatedAt: z.date().nullable().describe("Last updated timestamp"),
@@ -156,7 +216,7 @@ export const publicFieldOutputModel = z.object({
   isRequired: z.boolean().describe("Whether the field is required"),
   index: z.string().describe("Fractional sort index"),
   type: formFieldTypeModel.describe("Type of the field"),
-  options: z.string().nullable().describe("Optional serialized options"),
+  config: fieldConfigModel.describe("Type-specific field configuration"),
   pageId: z.string().uuid().nullable().describe("Page this field belongs to (null = unassigned)"),
   createdAt: z.date().nullable().describe("Creation timestamp"),
   updatedAt: z.date().nullable().describe("Last updated timestamp"),
@@ -172,8 +232,13 @@ export const getFormByIdOutputModel = z.object({
   description: z.string().nullable().describe("The optional description of the form"),
   slug: z.string().nullable().describe("The unique slug of the form"),
   status: formStatusModel.describe("The current status of the form"),
+  visibility: formVisibilityModel.describe("The discoverability mode of the form"),
   isPasswordProtected: z.boolean().describe("Whether the form requires a password"),
   unlockDurationMinutes: z.number().describe("Unlock token duration in minutes"),
+  expiresAt: z.date().nullable().optional(),
+  maxResponses: z.number().nullable().optional(),
+  notifyCreatorOnSubmission: z.boolean().optional(),
+  sendRespondentConfirmation: z.boolean().optional(),
   createdAt: z.date().nullable().describe("Creation timestamp"),
   updatedAt: z.date().nullable().describe("Last updated timestamp"),
   fields: z.array(publicFieldOutputModel).describe("Ordered fields for rendering"),
@@ -190,8 +255,15 @@ export const getPublishedFormBySlugOutputModel = z.object({
   description: z.string().nullable().describe("The optional description of the form"),
   slug: z.string().nullable().describe("The unique slug of the form"),
   status: formStatusModel.describe("The current status of the form"),
+  visibility: formVisibilityModel.describe("The discoverability mode of the form"),
   isPasswordProtected: z.boolean().describe("Whether the form requires a password to access"),
   unlockDurationMinutes: z.number().describe("Unlock token validity in minutes"),
+  expiresAt: z.date().nullable().optional(),
+  maxResponses: z.number().nullable().optional(),
+  notifyCreatorOnSubmission: z.boolean().optional(),
+  sendRespondentConfirmation: z.boolean().optional(),
+  isClosed: z.boolean().optional(),
+  closedReason: z.enum(["EXPIRED", "MAX_RESPONSES_REACHED"]).nullable().optional(),
   createdAt: z.date().nullable().describe("Creation timestamp"),
   updatedAt: z.date().nullable().describe("Last updated timestamp"),
   fields: z.array(publicFieldOutputModel).describe("Ordered fields (empty if password-protected and no valid token)"),
@@ -203,7 +275,7 @@ export const submitPublicFormInputModel = z.object({
     z.object({
       fieldId: z.string().uuid().describe("Unique identifier for the field"),
       value: z
-        .union([z.string(), z.number(), z.boolean(), z.array(z.string())])
+        .union([z.string(), z.number(), z.array(z.string()), z.object({ start: z.string(), end: z.string() })])
         .describe("Submitted answer"),
     }),
   ),
@@ -222,7 +294,7 @@ export const getFormSubmissionsInputModel = z.object({
 export const formSubmissionValueOutputModel = z.object({
   fieldId: z.string().uuid().describe("Unique identifier for the field"),
   value: z
-    .union([z.string(), z.number(), z.boolean(), z.array(z.string())])
+    .union([z.string(), z.number(), z.array(z.string()), z.object({ start: z.string(), end: z.string() })])
     .describe("Submitted answer value"),
 });
 
@@ -262,7 +334,16 @@ export const exportCsvOutputModel = z.object({
 
 export const setFormPasswordInputModel = z.object({
   formId: z.string().uuid().describe("Form ID"),
-  password: z.string().min(4).max(100).nullable().describe("Password to set, or null to clear"),
+  password: z
+    .string()
+    .min(8, "Password must be at least 8 characters")
+    .regex(
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/,
+      "Password must include uppercase, lowercase, and a number",
+    )
+    .max(100)
+    .nullable()
+    .describe("Password to set, or null to clear"),
   unlockDurationMinutes: z
     .number()
     .int()
@@ -328,6 +409,12 @@ export const getPagesByFormIdOutputModel = z.array(
     order: z.number().describe("Display order"),
   })
 );
+
+export const getPublishedPagesBySlugInputModel = z.object({
+  slug: z.string().describe("Slug of a published form"),
+});
+
+export const getPublishedPagesBySlugOutputModel = getPagesByFormIdOutputModel;
 
 export const reorderPagesInputModel = z.object({
   formId: z.string().uuid().describe("Form ID"),

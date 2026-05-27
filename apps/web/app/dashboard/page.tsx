@@ -15,6 +15,7 @@ import {
 
 import { useUser } from "~/hooks/api/auth"
 import { useAnalyticsOverview } from "~/hooks/api/analytics"
+import { useListPublicForms } from "~/hooks/api/form"
 import { Skeleton } from "~/components/ui/skeleton"
 import { Sparkline } from "~/app/dashboard/analytics/components/sparkline"
 import { TemplateSection } from "~/app/dashboard/components/template-section"
@@ -127,6 +128,7 @@ function EmptyState() {
 export default function DashboardPage() {
   const { user } = useUser()
   const { overview, isLoading } = useAnalyticsOverview()
+  const { forms: publicForms } = useListPublicForms()
 
   const firstName = user?.fullName?.split(" ")[0] ?? ""
   const forms = overview?.forms ?? []
@@ -283,6 +285,22 @@ export default function DashboardPage() {
 
         {/* ── Featured Templates ─────────────────────────────────── */}
         <TemplateSection />
+        <div>
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">
+            Featured Public Forms
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {publicForms.slice(0, 4).map((f) => (
+              <Link key={f.id} href={`/f/${f.slug}`} target="_blank" className="rounded-xl border border-border/60 bg-card p-4 hover:bg-muted/20 transition-colors">
+                <p className="text-sm font-medium">{f.title}</p>
+                <p className="text-xs text-muted-foreground mt-1">{f.description ?? "No description"}</p>
+              </Link>
+            ))}
+            {publicForms.length === 0 && (
+              <p className="text-sm text-muted-foreground">No public forms yet.</p>
+            )}
+          </div>
+        </div>
 
       </div>
     </div>

@@ -4,6 +4,7 @@ import { and, asc, db, eq, isNull } from "@repo/database";
 import { formTables } from "@repo/database/models/form";
 import { formFieldsTable } from "@repo/database/models/form-field";
 import { formPagesTable } from "@repo/database/models/form-page";
+import { formSubmissionTable } from "@repo/database/models/form-submission";
 
 import {
   type CreateFormInputType,
@@ -12,6 +13,9 @@ import {
   type GetPublishedFormBySlugInputType,
   type ListFormByUserIdInputType,
   type PublishFormInputType,
+  type SetFormVisibilityInputType,
+  type UpdateFormLimitsInputType,
+  type UpdateFormNotificationSettingsInputType,
   type SetFormPasswordInputType,
   type UnlockFormInputType,
   type UnpublishFormInputType,
@@ -23,6 +27,9 @@ import {
   getPublishedFormBySlugInput,
   listFormByUserIdInput,
   publishFormInput,
+  setFormVisibilityInput,
+  updateFormLimitsInput,
+  updateFormNotificationSettingsInput,
   setFormPasswordInput,
   unlockFormInput,
   unpublishFormInput,
@@ -102,8 +109,13 @@ class FormService {
         description: formTables.description,
         slug: formTables.slug,
         status: formTables.status,
+        visibility: formTables.visibility,
         passwordHash: formTables.passwordHash,
         unlockDurationMinutes: formTables.unlockDurationMinutes,
+        expiresAt: formTables.expiresAt,
+        maxResponses: formTables.maxResponses,
+        notifyCreatorOnSubmission: formTables.notifyCreatorOnSubmission,
+        sendRespondentConfirmation: formTables.sendRespondentConfirmation,
         createdAt: formTables.createdAt,
         updatedAt: formTables.updatedAt,
       })
@@ -115,11 +127,42 @@ class FormService {
         ),
       );
 
-    return forms.map((f) => ({
+    const formsWithResponseCounts = await Promise.all(
+      forms.map(async (f) => ({
+        ...f,
+        responseCount: await db.$count(
+          formSubmissionTable,
+          eq(formSubmissionTable.formId, f.id),
+        ),
+      })),
+    );
+
+    return formsWithResponseCounts.map((f) => ({
       ...f,
       isPasswordProtected: !!f.passwordHash,
       passwordHash: undefined, // never expose hash to client
     }));
+  }
+
+  public async listPublicForms() {
+    const forms = await db
+      .select({
+        id: formTables.id,
+        title: formTables.title,
+        description: formTables.description,
+        slug: formTables.slug,
+        createdAt: formTables.createdAt,
+      })
+      .from(formTables)
+      .where(
+        and(
+          eq(formTables.status, "PUBLISHED"),
+          eq(formTables.visibility, "PUBLIC"),
+          isNull(formTables.deletedAt),
+        ),
+      );
+
+    return forms.filter((f) => !!f.slug);
   }
 
   // Public — returns form. If password-protected and no valid unlockToken, returns
@@ -134,9 +177,14 @@ class FormService {
         formTitle: formTables.title,
         formDescription: formTables.description,
         formStatus: formTables.status,
+        formVisibility: formTables.visibility,
         formSlug: formTables.slug,
         formPasswordHash: formTables.passwordHash,
         unlockDurationMinutes: formTables.unlockDurationMinutes,
+        expiresAt: formTables.expiresAt,
+        maxResponses: formTables.maxResponses,
+        notifyCreatorOnSubmission: formTables.notifyCreatorOnSubmission,
+        sendRespondentConfirmation: formTables.sendRespondentConfirmation,
         formCreatedAt: formTables.createdAt,
         formUpdatedAt: formTables.updatedAt,
       })
@@ -154,6 +202,15 @@ class FormService {
     }
 
     const isPasswordProtected = !!formRow.formPasswordHash;
+    const responseCount = await db.$count(formSubmissionTable, eq(formSubmissionTable.formId, formRow.formId));
+    const isExpired = !!formRow.expiresAt && formRow.expiresAt.getTime() < Date.now();
+    const isLimitReached = formRow.maxResponses !== null && formRow.maxResponses !== undefined && responseCount >= formRow.maxResponses;
+    const isClosed = isExpired || isLimitReached;
+    const closedReason: "EXPIRED" | "MAX_RESPONSES_REACHED" | null = isExpired
+      ? "EXPIRED"
+      : isLimitReached
+        ? "MAX_RESPONSES_REACHED"
+        : null;
 
     // Step 2: if password-protected, validate the unlock token
     if (isPasswordProtected) {
@@ -165,8 +222,15 @@ class FormService {
           description: formRow.formDescription,
           slug: formRow.formSlug,
           status: formRow.formStatus,
+          visibility: formRow.formVisibility,
           isPasswordProtected: true as const,
           unlockDurationMinutes: formRow.unlockDurationMinutes ?? 30,
+          expiresAt: formRow.expiresAt,
+          maxResponses: formRow.maxResponses,
+          notifyCreatorOnSubmission: formRow.notifyCreatorOnSubmission ?? true,
+          sendRespondentConfirmation: formRow.sendRespondentConfirmation ?? true,
+          isClosed,
+          closedReason,
           createdAt: formRow.formCreatedAt,
           updatedAt: formRow.formUpdatedAt,
           fields: [] as Array<{
@@ -174,7 +238,7 @@ class FormService {
             description: string | null; placeholder: string | null;
             isRequired: boolean; index: string;
             type: "SHORT_TEXT" | "LONG_TEXT" | "EMAIL" | "NUMBER" | "SINGLE_SELECT" | "MULTI_SELECT" | "CHECKBOX" | "RATING" | "DATE";
-            options: string | null; pageId: string | null;
+            config: { maxWords?: number; options?: string[]; min?: number; max?: number; step?: number; mode?: "single" | "range" }; pageId: string | null;
             createdAt: Date | null; updatedAt: Date | null;
           }>,
         };
@@ -204,7 +268,7 @@ class FormService {
         fieldIsRequired: formFieldsTable.isRequired,
         fieldIndex: formFieldsTable.index,
         fieldType: formFieldsTable.type,
-        fieldOptions: formFieldsTable.options,
+        fieldConfig: formFieldsTable.config,
         fieldPageId: formFieldsTable.pageId,
         fieldCreatedAt: formFieldsTable.createdAt,
         fieldUpdatedAt: formFieldsTable.updatedAt,
@@ -224,7 +288,7 @@ class FormService {
         isRequired: row.fieldIsRequired!,
         index: String(row.fieldIndex!),
         type: row.fieldType! as "SHORT_TEXT" | "LONG_TEXT" | "EMAIL" | "NUMBER" | "SINGLE_SELECT" | "MULTI_SELECT" | "CHECKBOX" | "RATING" | "DATE",
-        options: row.fieldOptions,
+        config: row.fieldConfig ?? {},
         pageId: row.fieldPageId,
         createdAt: row.fieldCreatedAt,
         updatedAt: row.fieldUpdatedAt,
@@ -236,8 +300,15 @@ class FormService {
       description: formRow.formDescription,
       slug: formRow.formSlug,
       status: formRow.formStatus,
+      visibility: formRow.formVisibility,
       isPasswordProtected,
       unlockDurationMinutes: formRow.unlockDurationMinutes ?? 30,
+      expiresAt: formRow.expiresAt,
+      maxResponses: formRow.maxResponses,
+      notifyCreatorOnSubmission: formRow.notifyCreatorOnSubmission ?? true,
+      sendRespondentConfirmation: formRow.sendRespondentConfirmation ?? true,
+      isClosed,
+      closedReason,
       createdAt: formRow.formCreatedAt,
       updatedAt: formRow.formUpdatedAt,
       fields,
@@ -254,9 +325,14 @@ class FormService {
         formTitle: formTables.title,
         formDescription: formTables.description,
         formStatus: formTables.status,
+        formVisibility: formTables.visibility,
         formSlug: formTables.slug,
         formPasswordHash: formTables.passwordHash,
         unlockDurationMinutes: formTables.unlockDurationMinutes,
+        expiresAt: formTables.expiresAt,
+        maxResponses: formTables.maxResponses,
+        notifyCreatorOnSubmission: formTables.notifyCreatorOnSubmission,
+        sendRespondentConfirmation: formTables.sendRespondentConfirmation,
         formCreatedAt: formTables.createdAt,
         formUpdatedAt: formTables.updatedAt,
         fieldId: formFieldsTable.id,
@@ -267,7 +343,7 @@ class FormService {
         fieldIsRequired: formFieldsTable.isRequired,
         fieldIndex: formFieldsTable.index,
         fieldType: formFieldsTable.type,
-        fieldOptions: formFieldsTable.options,
+        fieldConfig: formFieldsTable.config,
         fieldPageId: formFieldsTable.pageId,
         fieldCreatedAt: formFieldsTable.createdAt,
         fieldUpdatedAt: formFieldsTable.updatedAt,
@@ -299,7 +375,7 @@ class FormService {
         isRequired: row.fieldIsRequired!,
         index: String(row.fieldIndex!),
         type: row.fieldType! as "SHORT_TEXT" | "LONG_TEXT" | "EMAIL" | "NUMBER" | "SINGLE_SELECT" | "MULTI_SELECT" | "CHECKBOX" | "RATING" | "DATE",
-        options: row.fieldOptions,
+        config: row.fieldConfig ?? {},
         pageId: row.fieldPageId,
         createdAt: row.fieldCreatedAt,
         updatedAt: row.fieldUpdatedAt,
@@ -311,8 +387,13 @@ class FormService {
       description: first.formDescription,
       slug: first.formSlug,
       status: first.formStatus,
+      visibility: first.formVisibility,
       isPasswordProtected: !!first.formPasswordHash,
       unlockDurationMinutes: first.unlockDurationMinutes ?? 30,
+      expiresAt: first.expiresAt,
+      maxResponses: first.maxResponses,
+      notifyCreatorOnSubmission: first.notifyCreatorOnSubmission ?? true,
+      sendRespondentConfirmation: first.sendRespondentConfirmation ?? true,
       createdAt: first.formCreatedAt,
       updatedAt: first.formUpdatedAt,
       fields,
@@ -379,6 +460,67 @@ class FormService {
     }
 
     return { id: updateResult[0]!.id, status: updateResult[0]!.status };
+  }
+
+  // Set visibility — owner only
+  public async setFormVisibility(payload: SetFormVisibilityInputType) {
+    const { formId, userId, visibility } = await setFormVisibilityInput.parseAsync(payload);
+
+    const updateResult = await db
+      .update(formTables)
+      .set({ visibility })
+      .where(
+        and(
+          eq(formTables.id, formId),
+          eq(formTables.createdBy, userId),
+          isNull(formTables.deletedAt),
+        ),
+      )
+      .returning({ id: formTables.id, visibility: formTables.visibility });
+
+    if (!updateResult || updateResult.length === 0) {
+      throw new Error(`Form with ID ${formId} does not exist or you do not have access`);
+    }
+
+    return { id: updateResult[0]!.id, visibility: updateResult[0]!.visibility };
+  }
+
+  public async updateFormLimits(payload: UpdateFormLimitsInputType) {
+    const { formId, userId, expiresAt, maxResponses } = await updateFormLimitsInput.parseAsync(payload);
+    const patch: Partial<typeof formTables.$inferInsert> = {};
+    if (Object.prototype.hasOwnProperty.call(payload, "expiresAt")) patch.expiresAt = expiresAt ? new Date(expiresAt) : null;
+    if (Object.prototype.hasOwnProperty.call(payload, "maxResponses")) patch.maxResponses = maxResponses ?? null;
+
+    const [updated] = await db
+      .update(formTables)
+      .set(patch)
+      .where(and(eq(formTables.id, formId), eq(formTables.createdBy, userId), isNull(formTables.deletedAt)))
+      .returning({ id: formTables.id, expiresAt: formTables.expiresAt, maxResponses: formTables.maxResponses });
+
+    if (!updated) throw new Error(`Form with ID ${formId} does not exist or you do not have access`);
+    return updated;
+  }
+
+  public async updateFormNotificationSettings(payload: UpdateFormNotificationSettingsInputType) {
+    const { formId, userId, notifyCreatorOnSubmission, sendRespondentConfirmation } =
+      await updateFormNotificationSettingsInput.parseAsync(payload);
+
+    const patch: Partial<typeof formTables.$inferInsert> = {};
+    if (notifyCreatorOnSubmission !== undefined) patch.notifyCreatorOnSubmission = notifyCreatorOnSubmission;
+    if (sendRespondentConfirmation !== undefined) patch.sendRespondentConfirmation = sendRespondentConfirmation;
+
+    const [updated] = await db
+      .update(formTables)
+      .set(patch)
+      .where(and(eq(formTables.id, formId), eq(formTables.createdBy, userId), isNull(formTables.deletedAt)))
+      .returning({
+        id: formTables.id,
+        notifyCreatorOnSubmission: formTables.notifyCreatorOnSubmission,
+        sendRespondentConfirmation: formTables.sendRespondentConfirmation,
+      });
+
+    if (!updated) throw new Error(`Form with ID ${formId} does not exist or you do not have access`);
+    return updated;
   }
 
   // Unpublish form — sets status back to DRAFT
@@ -460,9 +602,14 @@ class FormService {
         description: originalForm.description,
         slug: newSlug,
         status: "DRAFT",
+        visibility: originalForm.visibility,
         createdBy: userId,
         passwordHash: originalForm.passwordHash,
         unlockDurationMinutes: originalForm.unlockDurationMinutes,
+        expiresAt: originalForm.expiresAt,
+        maxResponses: originalForm.maxResponses,
+        notifyCreatorOnSubmission: originalForm.notifyCreatorOnSubmission,
+        sendRespondentConfirmation: originalForm.sendRespondentConfirmation,
       })
       .returning({ id: formTables.id });
 
@@ -511,7 +658,7 @@ class FormService {
           isRequired: field.isRequired,
           index: field.index,
           type: field.type,
-          options: field.options,
+          config: field.config ?? {},
           pageId: field.pageId ? (pageIdMap.get(field.pageId) ?? null) : null,
         }))
       );
@@ -574,6 +721,31 @@ class FormService {
    * Verify a password against a form's hash and return a short-lived unlock token.
    * The token expiry is set by the form owner via unlockDurationMinutes.
    */
+  public async getUnlockRateLimitContext(slug: string) {
+    const [form] = await db
+      .select({
+        id: formTables.id,
+        createdBy: formTables.createdBy,
+      })
+      .from(formTables)
+      .where(
+        and(
+          eq(formTables.slug, slug),
+          eq(formTables.status, "PUBLISHED"),
+          isNull(formTables.deletedAt),
+        ),
+      );
+
+    if (!form) {
+      return null;
+    }
+
+    return {
+      formId: form.id,
+      accountId: form.createdBy ?? form.id,
+    };
+  }
+
   public async unlockForm(payload: UnlockFormInputType) {
     const { slug, password } = await unlockFormInput.parseAsync(payload);
 

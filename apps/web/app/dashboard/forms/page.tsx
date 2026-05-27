@@ -1,8 +1,9 @@
 "use client"
 
 import { useState } from "react"
-import Link from "next/link"
-import { BarChart2, CopyIcon, MoreHorizontal, PlusIcon, UserRoundPen } from "lucide-react"
+import { useRouter } from "next/navigation"
+import QRCode from "react-qr-code"
+import { BarChart2Icon, CopyIcon, PlusIcon, Share2Icon } from "lucide-react"
 import { useForm } from "react-hook-form"
 import { toast } from "sonner"
 
@@ -16,12 +17,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "~/components/ui/dialog"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "~/components/ui/dropdown-menu"
 import {
   Field,
   FieldDescription,
@@ -47,7 +42,9 @@ type CreateFormValues = {
 }
 
 export default function FormsPage() {
+  const router = useRouter()
   const [open, setOpen] = useState(false)
+  const [shareForm, setShareForm] = useState<{ id: string; title: string; slug: string | null } | null>(null)
   const { createFormAsync, status: createStatus } = useCreateForm()
   const { cloneFormAsync, status: cloneStatus } = useCloneForm()
   const { forms, error, isLoading, isFetching } = useListForms()
@@ -91,6 +88,20 @@ export default function FormsPage() {
     }
   }
 
+  const getPublicUrl = (slug: string) => {
+    if (typeof window === "undefined") return `/f/${slug}`
+    return `${window.location.origin}/f/${slug}`
+  }
+
+  const handleCopyPublicLink = async (slug: string | null) => {
+    if (!slug) {
+      toast.error("This form does not have a public slug yet")
+      return
+    }
+    await navigator.clipboard.writeText(getPublicUrl(slug))
+    toast.success("Public link copied")
+  }
+
   const formatDate = (date: Date | string | null) => {
     if (!date) {
       return "Not updated"
@@ -126,14 +137,14 @@ export default function FormsPage() {
           </div>
 
           <div className="rounded-lg border">
-            <Table>
+            <Table className="w-full">
               <TableHeader>
                 <TableRow>
-                  <TableHead>Form</TableHead>
-                  <TableHead className="hidden md:table-cell">Status</TableHead>
-                  <TableHead className="hidden md:table-cell">Created</TableHead>
-                  <TableHead className="hidden lg:table-cell">Updated</TableHead>
-                  <TableHead className="w-32 text-right">Action</TableHead>
+                  <TableHead className="pl-6">Form</TableHead>
+                  <TableHead className="hidden md:table-cell text-center">Status</TableHead>
+                  <TableHead className="hidden md:table-cell text-center">Responses</TableHead>
+                  <TableHead className="hidden lg:table-cell text-center">Last Modified</TableHead>
+                  <TableHead className="pr-6 text-center">Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -151,15 +162,14 @@ export default function FormsPage() {
                   </TableRow>
                 ) : forms?.length ? (
                   forms.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell>
+                    <TableRow
+                      key={item.id}
+                      className="group cursor-pointer"
+                      onClick={() => router.push(`/dashboard/forms/${item.id}`)}
+                    >
+                      <TableCell className="pl-6">
                         <div className="flex min-w-0 flex-col gap-1">
-                          <Link
-                            href={`/dashboard/forms/${item.id}`}
-                            className="w-fit font-medium underline-offset-4 hover:underline"
-                          >
-                            {item.title}
-                          </Link>
+                          <p className="w-fit font-medium">{item.title}</p>
                           <p className="max-w-xl truncate text-sm text-muted-foreground">
                             {item.description || "No description"}
                           </p>
@@ -173,43 +183,53 @@ export default function FormsPage() {
                           )}
                         </div>
                       </TableCell>
-                      <TableCell className="hidden md:table-cell">
+                      <TableCell className="hidden text-center md:table-cell">
                         <Badge variant={item.status === "PUBLISHED" ? "default" : "secondary"}>
                           {item.status}
                         </Badge>
                       </TableCell>
-                      <TableCell className="hidden text-muted-foreground md:table-cell">
-                        {formatDate(item.createdAt)}
+                      <TableCell className="hidden text-center text-muted-foreground md:table-cell">
+                        {Number(item.responseCount ?? 0)}
                       </TableCell>
-                      <TableCell className="hidden text-muted-foreground lg:table-cell">
+                      <TableCell className="hidden text-center text-muted-foreground lg:table-cell">
                         {formatDate(item.updatedAt)}
                       </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <Button asChild size="icon" variant="outline">
-                            <Link href={`/dashboard/forms/${item.id}`}>
-                              <UserRoundPen className="h-4 w-4" />
-                            </Link>
+                      <TableCell className="pr-6">
+                        <div className="flex items-center justify-center gap-3">
+                          <Button
+                            size="icon-sm"
+                            variant="ghost"
+                            title="Clone"
+                            disabled={cloneStatus === "pending"}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              void handleCloneForm(item.id)
+                            }}
+                          >
+                            <CopyIcon className="h-4 w-4" />
                           </Button>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button size="icon" variant="ghost" disabled={cloneStatus === "pending"}>
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem asChild>
-                                <Link href={`/dashboard/analytics/${item.id}`}>
-                                  <BarChart2 className="mr-2 h-4 w-4" />
-                                  Analytics
-                                </Link>
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleCloneForm(item.id)}>
-                                <CopyIcon className="mr-2 h-4 w-4" />
-                                Clone Form
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                          <Button
+                            size="icon-sm"
+                            variant="ghost"
+                            title="Analytics"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              void router.push(`/dashboard/analytics/${item.id}`)
+                            }}
+                          >
+                            <BarChart2Icon className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="icon-sm"
+                            variant="ghost"
+                            title="Share"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setShareForm({ id: item.id, title: item.title, slug: item.slug })
+                            }}
+                          >
+                            <Share2Icon className="h-4 w-4" />
+                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -294,6 +314,40 @@ export default function FormsPage() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(shareForm)} onOpenChange={(next) => { if (!next) setShareForm(null) }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Share Form</DialogTitle>
+            <DialogDescription>
+              {shareForm?.title ? `Share "${shareForm.title}"` : "Share this form"}
+            </DialogDescription>
+          </DialogHeader>
+          {shareForm?.slug ? (
+            <div className="space-y-4">
+              <div className="rounded-md border bg-muted/40 p-3 text-sm font-mono text-muted-foreground break-all">
+                {getPublicUrl(shareForm.slug)}
+              </div>
+              <div className="flex justify-center">
+                <div className="rounded-md border bg-white p-3">
+                  <QRCode value={getPublicUrl(shareForm.slug)} size={132} />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShareForm(null)}>Close</Button>
+                <Button onClick={() => void handleCopyPublicLink(shareForm.slug)}>Copy Link</Button>
+              </DialogFooter>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">No public slug found for this form.</p>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShareForm(null)}>Close</Button>
+              </DialogFooter>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

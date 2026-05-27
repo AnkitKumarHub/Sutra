@@ -15,10 +15,11 @@ import {
   FieldLabel,
 } from "~/components/ui/field";
 import { Input } from "~/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "~/components/ui/select";
 import { Textarea } from "~/components/ui/textarea";
 import {
   useGetPublishedFormBySlug,
-  useGetPagesByFormId,
+  useGetPublishedPagesBySlug,
   useSubmitPublicForm,
   useUnlockForm,
 } from "~/hooks/api/form";
@@ -27,6 +28,7 @@ import {
 
 type PublicForm = NonNullable<ReturnType<typeof useGetPublishedFormBySlug>["form"]>;
 type PublicField = PublicForm["fields"][number];
+type DateRangeValue = { start: string; end: string };
 
 const getInputType = (type: PublicField["type"]) => {
   switch (type) {
@@ -132,45 +134,107 @@ function FormField({
   onChange,
 }: {
   field: PublicField;
-  value: string | boolean | string[] | undefined;
+  value: string | string[] | DateRangeValue | undefined;
   isSubmitting: boolean;
-  onChange: (val: string | boolean | string[]) => void;
+  onChange: (val: string | string[] | DateRangeValue) => void;
 }) {
   const inputId = `field-${field.id}`;
   const isCheckbox = field.type === "CHECKBOX";
   const isLongText = field.type === "LONG_TEXT";
+  const isSingleSelect = field.type === "SINGLE_SELECT";
+  const isMultiSelect = field.type === "MULTI_SELECT";
+  const isDateRange = field.type === "DATE" && field.config?.mode === "range";
   const stringValue = typeof value === "string" ? value : "";
+  const options = field.config?.options ?? [];
+  const selected = Array.isArray(value) ? value : [];
+  const rangeValue = typeof value === "object" && value !== null && !Array.isArray(value) ? value : { start: "", end: "" };
+  const maxWords = field.config?.maxWords;
+  const wordCount = stringValue.trim() ? stringValue.trim().split(/\s+/).length : 0;
 
   const control = isCheckbox ? (
-    <div className="flex items-center gap-2">
-      <Checkbox
-        id={inputId}
-        name={field.labelKey}
-        checked={Boolean(value)}
-        disabled={isSubmitting}
-        onCheckedChange={(checked) => onChange(Boolean(checked))}
-      />
-      <span className="text-sm text-muted-foreground">Yes</span>
+    <div className="flex flex-col gap-2">
+      {options.map((opt) => (
+        <div key={opt} className="flex items-center gap-2">
+          <Checkbox
+            id={`${inputId}-${opt}`}
+            checked={selected.includes(opt)}
+            disabled={isSubmitting}
+            onCheckedChange={(checked) =>
+              onChange(checked ? [...selected, opt] : selected.filter((x) => x !== opt))
+            }
+          />
+          <span className="text-sm text-muted-foreground">{opt}</span>
+        </div>
+      ))}
     </div>
   ) : isLongText ? (
-    <Textarea
-      id={inputId}
-      name={field.labelKey}
-      value={stringValue}
-      placeholder={field.placeholder ?? undefined}
-      disabled={isSubmitting}
-      onChange={(e) => onChange(e.target.value)}
-    />
-  ) : (
+    <div className="space-y-1">
+      <Textarea
+        id={inputId}
+        name={field.labelKey}
+        value={stringValue}
+        placeholder={field.placeholder ?? undefined}
+        disabled={isSubmitting}
+        onChange={(e) => onChange(e.target.value)}
+      />
+      {maxWords && (
+        <p className={`text-xs ${wordCount > maxWords ? "text-destructive" : "text-muted-foreground"}`}>
+          {wordCount}/{maxWords} words
+        </p>
+      )}
+    </div>
+  ) : isSingleSelect ? (
+    <Select value={stringValue} onValueChange={(v) => onChange(v)} disabled={isSubmitting}>
+      <SelectTrigger>
+        <SelectValue placeholder={field.placeholder ?? "Select option"} />
+      </SelectTrigger>
+      <SelectContent>
+        {options.map((opt) => (
+          <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  ) : isMultiSelect ? (
     <Input
       id={inputId}
       name={field.labelKey}
-      type={getInputType(field.type)}
-      value={stringValue}
-      placeholder={field.placeholder ?? undefined}
+      value={Array.isArray(value) ? value.join(", ") : stringValue}
+      placeholder={field.placeholder ?? "Option A, Option B"}
       disabled={isSubmitting}
-      onChange={(e) => onChange(e.target.value)}
+      onChange={(e) => onChange(e.target.value.split(",").map((s) => s.trim()).filter(Boolean))}
     />
+  ) : isDateRange ? (
+    <div className="grid grid-cols-2 gap-2">
+      <Input
+        type="date"
+        value={rangeValue.start}
+        disabled={isSubmitting}
+        onChange={(e) => onChange({ ...rangeValue, start: e.target.value })}
+      />
+      <Input
+        type="date"
+        value={rangeValue.end}
+        disabled={isSubmitting}
+        onChange={(e) => onChange({ ...rangeValue, end: e.target.value })}
+      />
+    </div>
+  ) : (
+    <div className="space-y-1">
+      <Input
+        id={inputId}
+        name={field.labelKey}
+        type={getInputType(field.type)}
+        value={stringValue}
+        placeholder={field.placeholder ?? undefined}
+        disabled={isSubmitting}
+        onChange={(e) => onChange(e.target.value)}
+      />
+      {maxWords && (
+        <p className={`text-xs ${wordCount > maxWords ? "text-destructive" : "text-muted-foreground"}`}>
+          {wordCount}/{maxWords} words
+        </p>
+      )}
+    </div>
   );
 
   return (
@@ -197,14 +261,13 @@ export default function PublicFormPage() {
   const [unlockToken, setUnlockToken] = useState<string | undefined>(undefined);
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
   const [isSubmitted, setIsSubmitted] = useState(false);
-  const [fieldValues, setFieldValues] = useState<Record<string, string | boolean | string[]>>({});
+  const [fieldValues, setFieldValues] = useState<Record<string, string | string[] | DateRangeValue>>({});
 
   const { form, error, isLoading } = useGetPublishedFormBySlug(slug ?? "", unlockToken);
   const { submitPublicFormAsync, status: submitStatus } = useSubmitPublicForm();
   const isSubmitting = submitStatus === "pending";
 
-  // Only fetch pages when we have a form id (and password resolved)
-  const { pages } = useGetPagesByFormId(form?.id ?? "");
+  const { pages } = useGetPublishedPagesBySlug(slug ?? "");
 
   // ── Derive page-split fields ──────────────────────────────────────────────
   const pageGroups = useMemo(() => {
@@ -237,23 +300,37 @@ export default function PublicFormPage() {
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
-  const handleFieldChange = (fieldId: string, value: string | boolean | string[]) => {
+  const handleFieldChange = (fieldId: string, value: string | string[] | DateRangeValue) => {
     setFieldValues((prev) => ({ ...prev, [fieldId]: value }));
   };
 
   const buildSubmitValues = () => {
     if (!form) return [];
-    const values: Array<{ fieldId: string; value: string | number | boolean | string[] }> = [];
+    const values: Array<{ fieldId: string; value: string | number | string[] | DateRangeValue }> = [];
 
     for (const field of form.fields) {
       if (field.type === "CHECKBOX") {
-        values.push({ fieldId: field.id, value: Boolean(fieldValues[field.id]) });
+        values.push({ fieldId: field.id, value: Array.isArray(fieldValues[field.id]) ? (fieldValues[field.id] as string[]) : [] });
+        continue;
+      }
+      if (field.type === "DATE" && field.config?.mode === "range") {
+        const raw = fieldValues[field.id];
+        if (!raw || typeof raw !== "object" || Array.isArray(raw)) continue;
+        if (!raw.start || !raw.end) continue;
+        values.push({ fieldId: field.id, value: raw as DateRangeValue });
         continue;
       }
       const rawValue = fieldValues[field.id];
       if (typeof rawValue !== "string") continue;
       const trimmed = rawValue.trim();
       if (!trimmed) continue;
+      if ((field.type === "SHORT_TEXT" || field.type === "LONG_TEXT") && field.config?.maxWords) {
+        const words = trimmed.split(/\s+/).filter(Boolean).length;
+        if (words > field.config.maxWords) {
+          toast.error(`${field.label} exceeds ${field.config.maxWords} words`);
+          return [];
+        }
+      }
 
       if (field.type === "NUMBER" || field.type === "RATING") {
         const num = Number(trimmed);
@@ -317,6 +394,17 @@ export default function PublicFormPage() {
     return (
       <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-6 py-16 text-center">
         <p className="text-sm text-muted-foreground">Form not found.</p>
+      </div>
+    );
+  }
+
+  if (form.isClosed) {
+    return (
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-6 py-16 text-center">
+        <p className="text-sm font-medium">Form is closed.</p>
+        <p className="text-xs text-muted-foreground">
+          {form.closedReason === "EXPIRED" ? "This form has expired." : "Response limit has been reached."}
+        </p>
       </div>
     );
   }

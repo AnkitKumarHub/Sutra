@@ -3,7 +3,7 @@ import { z } from "zod";
 export const createSubmissionValueInput = z.object({
   fieldId: z.uuid().describe("Unique identifier of the field"),
   value: z
-    .union([z.string(), z.number(), z.boolean(), z.array(z.string())])
+    .union([z.string(), z.number(), z.array(z.string()), z.object({ start: z.string(), end: z.string() })])
     .describe("Submitted field value"),
 });
 

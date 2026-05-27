@@ -6,14 +6,42 @@ import {
   type CreateFieldInputType,
   type DeleteFieldInputType,
   type GetFieldsByFormIdInputType,
+  type ReorderFieldsInputType,
   type UpdateFieldInputType,
   createFieldInput,
   deleteFieldInput,
   getFieldsByFormIdInput,
+  reorderFieldsInput,
   updateFieldInput,
 } from "./model";
 
 class FormFieldService {
+  private validateConfig(
+    type: "SHORT_TEXT" | "LONG_TEXT" | "EMAIL" | "NUMBER" | "SINGLE_SELECT" | "MULTI_SELECT" | "CHECKBOX" | "RATING" | "DATE",
+    config: {
+      maxWords?: number;
+      options?: string[];
+      min?: number;
+      max?: number;
+      step?: number;
+      mode?: "single" | "range";
+    } | undefined,
+  ) {
+    if (type === "SHORT_TEXT" || type === "LONG_TEXT") {
+      if (config?.maxWords !== undefined && config.maxWords < 1) throw new Error("maxWords must be at least 1");
+    }
+    if (type === "SINGLE_SELECT" || type === "MULTI_SELECT" || type === "CHECKBOX") {
+      if (!config?.options || config.options.length === 0) throw new Error("options are required for this field type");
+    }
+    if (type === "RATING") {
+      const min = config?.min ?? 1;
+      const max = config?.max ?? 5;
+      if (min >= max) throw new Error("rating min must be less than max");
+    }
+    if (type === "DATE") {
+      if (config?.mode && !["single", "range"].includes(config.mode)) throw new Error("invalid date mode");
+    }
+  }
   private async getNextIndex(formId: string): Promise<string> {
     const result = await db
       .select({ maxIndex: max(formFieldsTable.index) })
@@ -37,8 +65,9 @@ class FormFieldService {
   }
 
   public async createField(payload: CreateFieldInputType) {
-    const { formId, userId, label, description, placeholder, isRequired, type, options } =
+    const { formId, userId, label, description, placeholder, isRequired, type, config } =
       await createFieldInput.parseAsync(payload);
+    this.validateConfig(type, config);
 
     // Verify form exists and user owns it
     const form = await db
@@ -70,7 +99,7 @@ class FormFieldService {
         isRequired,
         index,
         type,
-        options,
+        config: config ?? {},
       })
       .returning({
         id: formFieldsTable.id,
@@ -118,8 +147,11 @@ class FormFieldService {
     if (Object.prototype.hasOwnProperty.call(values, "placeholder")) {
       patch.placeholder = values.placeholder ?? null;
     }
-    if (Object.prototype.hasOwnProperty.call(values, "options")) {
-      patch.options = values.options ?? null;
+    if (Object.prototype.hasOwnProperty.call(values, "config")) {
+      patch.config = values.config ?? {};
+    }
+    if (patch.type || patch.config) {
+      this.validateConfig((patch.type ?? values.type ?? "SHORT_TEXT") as never, (patch.config ?? values.config) as never);
     }
 
     if (Object.keys(patch).length === 0) {
@@ -193,7 +225,7 @@ class FormFieldService {
         isRequired: formFieldsTable.isRequired,
         index: formFieldsTable.index,
         type: formFieldsTable.type,
-        options: formFieldsTable.options,
+        config: formFieldsTable.config,
         pageId: formFieldsTable.pageId,
         createdAt: formFieldsTable.createdAt,
         updatedAt: formFieldsTable.updatedAt,
@@ -203,6 +235,72 @@ class FormFieldService {
       .orderBy(asc(formFieldsTable.index));
 
     return fields;
+  }
+
+  /**
+   * Reorder fields within a page (or unassigned bucket) using fractional indices.
+   */
+  public async reorderFields(payload: ReorderFieldsInputType) {
+    const { formId, userId, pageId, fieldIds } = await reorderFieldsInput.parseAsync(payload);
+
+    const [form] = await db
+      .select({ id: formTables.id })
+      .from(formTables)
+      .where(
+        and(
+          eq(formTables.id, formId),
+          eq(formTables.createdBy, userId),
+          isNull(formTables.deletedAt),
+        ),
+      );
+
+    if (!form) {
+      throw new Error("Form not found or you do not have permission");
+    }
+
+    const existing = await db
+      .select({
+        id: formFieldsTable.id,
+        pageId: formFieldsTable.pageId,
+        index: formFieldsTable.index,
+      })
+      .from(formFieldsTable)
+      .where(eq(formFieldsTable.formId, formId));
+
+    const bucket = existing.filter((f) => (f.pageId ?? null) === pageId);
+    const bucketIds = new Set(bucket.map((f) => f.id));
+
+    if (fieldIds.length !== bucket.length || !fieldIds.every((id) => bucketIds.has(id))) {
+      throw new Error("fieldIds must match all fields in the target page bucket");
+    }
+
+    const orderedBucket = [...bucket].sort(
+      (a, b) => parseFloat(String(a.index)) - parseFloat(String(b.index)),
+    );
+    const targetIndexByFieldId = new Map(
+      fieldIds.map((fieldId, position) => [fieldId, String(orderedBucket[position]!.index)]),
+    );
+    const minIndex = Math.min(...existing.map((f) => parseFloat(String(f.index))));
+
+    await db.transaction(async (tx) => {
+      for (let i = 0; i < fieldIds.length; i += 1) {
+        const fieldId = fieldIds[i]!;
+        // Two-phase update avoids transient unique(formId,index) collisions during swaps.
+        await tx
+          .update(formFieldsTable)
+          .set({ index: String(minIndex - 100000 - i) })
+          .where(eq(formFieldsTable.id, fieldId));
+      }
+
+      for (const fieldId of fieldIds) {
+        await tx
+          .update(formFieldsTable)
+          .set({ index: targetIndexByFieldId.get(fieldId)! })
+          .where(eq(formFieldsTable.id, fieldId));
+      }
+    });
+
+    return { success: true };
   }
 }
 

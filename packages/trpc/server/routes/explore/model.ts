@@ -15,3 +15,15 @@ export const templateItemModel = z.object({
 });
 
 export const listTemplatesOutputModel = z.array(templateItemModel);
+
+export const listPublicFormsInputModel = z.undefined();
+
+export const publicFormItemModel = z.object({
+  id: z.string(),
+  title: z.string(),
+  description: z.string().nullable(),
+  slug: z.string(),
+  createdAt: z.date().nullable(),
+});
+
+export const listPublicFormsOutputModel = z.array(publicFormItemModel);

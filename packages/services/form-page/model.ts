@@ -29,9 +29,16 @@ export type DeletePageInputType = z.infer<typeof deletePageInput>;
 // ── Get Pages ────────────────────────────────────────────────────────────────
 export const getPagesByFormIdInput = z.object({
   formId: z.uuid().describe("The unique identifier of the form"),
+  userId: z.uuid().describe("The unique identifier of the form owner"),
 });
 
 export type GetPagesByFormIdInputType = z.infer<typeof getPagesByFormIdInput>;
+
+export const getPublishedPagesBySlugInput = z.object({
+  slug: z.string().describe("The slug of a published form"),
+});
+
+export type GetPublishedPagesBySlugInputType = z.infer<typeof getPublishedPagesBySlugInput>;
 
 // ── Reorder Pages ────────────────────────────────────────────────────────────
 export const reorderPagesInput = z.object({

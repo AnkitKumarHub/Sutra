@@ -1,4 +1,4 @@
-import { and, asc, db, desc, eq } from "@repo/database";
+import { and, asc, db, desc, eq, isNull } from "@repo/database";
 import { formFieldsTable } from "@repo/database/models/form-field";
 import { formSubmissionTable, type FormSubmissionValuesRow } from "@repo/database/models/form-submission";
 import { formTables } from "@repo/database/models/form";
@@ -29,12 +29,32 @@ class FormSubmissionService {
         id: formTables.id,
         title: formTables.title,
         createdBy: formTables.createdBy,
+        status: formTables.status,
+        expiresAt: formTables.expiresAt,
+        maxResponses: formTables.maxResponses,
+        notifyCreatorOnSubmission: formTables.notifyCreatorOnSubmission,
+        sendRespondentConfirmation: formTables.sendRespondentConfirmation,
       })
       .from(formTables)
-      .where(eq(formTables.id, formId));
+      .where(and(eq(formTables.id, formId), isNull(formTables.deletedAt)));
 
     if (!form || form.length === 0) {
       throw new Error(`Form with ID ${formId} does not exist`);
+    }
+
+    if (form[0]?.status !== "PUBLISHED") {
+      throw new Error("Form is not published");
+    }
+
+    if (form[0]?.expiresAt && form[0].expiresAt.getTime() < Date.now()) {
+      throw new Error("Form is closed (expired)");
+    }
+
+    if (form[0]?.maxResponses !== null && form[0]?.maxResponses !== undefined) {
+      const currentCount = await db.$count(formSubmissionTable, eq(formSubmissionTable.formId, formId));
+      if (currentCount >= form[0].maxResponses) {
+        throw new Error("Form is closed (response limit reached)");
+      }
     }
 
     const fields = await db
@@ -42,6 +62,7 @@ class FormSubmissionService {
         id: formFieldsTable.id,
         type: formFieldsTable.type,
         isRequired: formFieldsTable.isRequired,
+        config: formFieldsTable.config,
       })
       .from(formFieldsTable)
       .where(eq(formFieldsTable.formId, formId));
@@ -69,8 +90,12 @@ class FormSubmissionService {
           throw new Error(`Field ${submissionValue.fieldId} must be a valid number`);
         }
       } else if (field.type === "CHECKBOX") {
-        if (typeof value !== "boolean") {
-          throw new Error(`Field ${submissionValue.fieldId} must be a boolean`);
+        if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) {
+          throw new Error(`Field ${submissionValue.fieldId} must be a string array`);
+        }
+        const opts = field.config?.options ?? [];
+        if (value.some((item) => !opts.includes(item))) {
+          throw new Error(`Field ${submissionValue.fieldId} contains invalid option`);
         }
       } else if (field.type === "EMAIL") {
         if (typeof value !== "string" || !emailSchema.safeParse(value).success) {
@@ -81,27 +106,57 @@ class FormSubmissionService {
         if (typeof value !== "string") {
           throw new Error(`Field ${submissionValue.fieldId} must be text`);
         }
+        const maxWords = field.config?.maxWords;
+        if (maxWords && value.trim().split(/\s+/).filter(Boolean).length > maxWords) {
+          throw new Error(`Field ${submissionValue.fieldId} exceeds max word limit`);
+        }
       } else if (field.type === "SINGLE_SELECT") {
         if (typeof value !== "string") {
           throw new Error(`Field ${submissionValue.fieldId} must be a string`);
+        }
+        const opts = field.config?.options ?? [];
+        if (opts.length > 0 && !opts.includes(value)) {
+          throw new Error(`Field ${submissionValue.fieldId} contains invalid option`);
         }
       } else if (field.type === "MULTI_SELECT") {
         if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) {
           throw new Error(`Field ${submissionValue.fieldId} must be a string array`);
         }
+        const opts = field.config?.options ?? [];
+        if (value.some((item) => !opts.includes(item))) {
+          throw new Error(`Field ${submissionValue.fieldId} contains invalid option`);
+        }
       } else if (field.type === "DATE") {
-        if (
-          typeof value !== "string" ||
-          Number.isNaN(new Date(value).getTime())
-        ) {
+        const mode = field.config?.mode ?? "single";
+        if (mode === "range") {
+          if (
+            typeof value !== "object" ||
+            value === null ||
+            Array.isArray(value) ||
+            !("start" in value) ||
+            !("end" in value) ||
+            typeof value.start !== "string" ||
+            typeof value.end !== "string" ||
+            Number.isNaN(new Date(value.start).getTime()) ||
+            Number.isNaN(new Date(value.end).getTime()) ||
+            new Date(value.start).getTime() > new Date(value.end).getTime()
+          ) {
+            throw new Error(`Field ${submissionValue.fieldId} must be a valid date range`);
+          }
+        } else if (typeof value !== "string" || Number.isNaN(new Date(value).getTime())) {
           throw new Error(`Field ${submissionValue.fieldId} must be a valid date string`);
         }
       }
 
       if (
         field.isRequired &&
-        typeof value === "string" &&
-        value.trim().length === 0
+        ((typeof value === "string" && value.trim().length === 0) ||
+          (typeof value === "object" &&
+            value !== null &&
+            !Array.isArray(value) &&
+            "start" in value &&
+            "end" in value &&
+            (!value.start || !value.end)))
       ) {
         throw new Error(`Field ${submissionValue.fieldId} is required`);
       }
@@ -143,7 +198,7 @@ class FormSubmissionService {
     }
 
     const creatorId = form[0]?.createdBy;
-    if (creatorId) {
+    if (creatorId && form[0]?.notifyCreatorOnSubmission) {
       const [creator] = await db
         .select({
           email: usersTable.email,
@@ -163,7 +218,7 @@ class FormSubmissionService {
             creatorEmail: creator.email,
             creatorName: creator.fullName ?? "Creator",
             respondentEmail,
-            sendRespondentConfirmation: Boolean(respondentEmail),
+            sendRespondentConfirmation: Boolean(respondentEmail) && Boolean(form[0]?.sendRespondentConfirmation),
           })
           .catch((error: unknown) => {
             logger.error("Submission email notification failed", {
