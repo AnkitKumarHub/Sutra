@@ -7,13 +7,21 @@ const ONE_DAY = 24 * ONE_HOUR;
 const ONE_MONTH = 30 * ONE_DAY;
 const ONE_YEAR = 12 * ONE_MONTH;
 
-const defaultCookieOptions: CookieOptions = {
-  path: "/",
-  httpOnly: true,
-  secure: false,
-  sameSite: "strict",
-  maxAge: ONE_YEAR, // 1 year
-};
+const isProduction =
+  process.env.NODE_ENV === "production" || process.env.NODE_ENV === "prod";
+
+/** Cross-site frontend (e.g. Vercel) → API (e.g. Render) requires SameSite=None + Secure. */
+function getAuthCookieOptions(maxAge: number): CookieOptions {
+  return {
+    path: "/",
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: isProduction ? "none" : "strict",
+    maxAge,
+  };
+}
+
+const defaultCookieOptions: CookieOptions = getAuthCookieOptions(ONE_YEAR);
 
 // ye function aisa function return karega jis se procedure cookies ko create kar skte hai
 // aapne ek factory bnayi hai jo basically enable krega how to create cookie
@@ -34,8 +42,8 @@ export function getCookieFactory(req: Request) {
 }
 
 export function clearCookieFactory(res: Response) {
-  return function clearCookie(name: string) {
-    res.clearCookie(name);
+  return function clearCookie(name: string, opts?: CookieOptions) {
+    res.clearCookie(name, opts);
   };
 }
 
@@ -43,10 +51,7 @@ const AUTHENTICATION_COOKIE_NAME = "authentication-token";
 const REFRESH_COOKIE_NAME = "refresh-token";
 
 export function setAuthenticationCookie(ctx: TRPCContext, accessToken: string) {
-  ctx.createCookie(AUTHENTICATION_COOKIE_NAME, accessToken, {
-    ...defaultCookieOptions,
-    maxAge: ONE_HOUR,
-  });
+  ctx.createCookie(AUTHENTICATION_COOKIE_NAME, accessToken, getAuthCookieOptions(ONE_HOUR));
 }
 
 export function getAuthenticationCookie(ctx: TRPCContext) {
@@ -54,14 +59,12 @@ export function getAuthenticationCookie(ctx: TRPCContext) {
 }
 
 export function clearAuthenticationCookie(ctx: TRPCContext) {
-  ctx.clearCookie(AUTHENTICATION_COOKIE_NAME);
+  const { path, secure, sameSite } = getAuthCookieOptions(0);
+  ctx.clearCookie(AUTHENTICATION_COOKIE_NAME, { path, secure, sameSite });
 }
 
 export function setRefreshTokenCookie(ctx: TRPCContext, refreshToken: string) {
-  ctx.createCookie(REFRESH_COOKIE_NAME, refreshToken, {
-    ...defaultCookieOptions,
-    maxAge: ONE_MONTH,
-  });
+  ctx.createCookie(REFRESH_COOKIE_NAME, refreshToken, getAuthCookieOptions(ONE_MONTH));
 }
 
 export function getRefreshTokenCookie(ctx: TRPCContext) {
@@ -69,5 +72,6 @@ export function getRefreshTokenCookie(ctx: TRPCContext) {
 }
 
 export function clearRefreshTokenCookie(ctx: TRPCContext) {
-  ctx.clearCookie(REFRESH_COOKIE_NAME);
+  const { path, secure, sameSite } = getAuthCookieOptions(0);
+  ctx.clearCookie(REFRESH_COOKIE_NAME, { path, secure, sameSite });
 }

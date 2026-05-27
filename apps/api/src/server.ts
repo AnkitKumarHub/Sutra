@@ -18,14 +18,12 @@ const openApiDocument = generateOpenApiDocument(serverRouter, {
   baseUrl: env.BASE_URL.concat("/api"),
 });
 
-if (env.NODE_ENV !== "prod") {
-  app.use(
-    cors({
-      origin: env.WEB_ORIGIN ?? "http://localhost:3000",
-      credentials: true
-    }),
-  );
-}
+app.use(
+  cors({
+    origin: env.WEB_ORIGIN ?? "http://localhost:3000",
+    credentials: true,
+  }),
+);
 
 app.use(cookeParser());
 
